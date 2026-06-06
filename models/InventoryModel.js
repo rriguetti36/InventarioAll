@@ -940,6 +940,88 @@ class InventoryModel {
     return result.recordset;
   }
 
+  static async moveStockShelf(id, targetShelfId = null, scopedLocationId = null) {
+    const pool = await poolPromise;
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    try {
+      const currentResult = await new sql.Request(transaction)
+        .input('id', sql.Int, Number(id))
+        .input('locationId', sql.Int, nullableInt(scopedLocationId))
+        .query(`
+          SELECT *
+          FROM InventoryStock
+          WHERE id = @id AND (@locationId IS NULL OR locationId = @locationId)
+        `);
+      const current = currentResult.recordset[0];
+      if (!current) {
+        const error = new Error('Existencia no encontrada');
+        error.status = 404;
+        throw error;
+      }
+
+      const nextShelfId = nullableInt(targetShelfId);
+      if (nextShelfId) {
+        const shelfResult = await new sql.Request(transaction)
+          .input('shelfId', sql.Int, nextShelfId)
+          .input('locationId', sql.Int, current.locationId)
+          .query('SELECT id FROM Shelves WHERE id = @shelfId AND locationId = @locationId');
+        if (!shelfResult.recordset[0]) {
+          const error = new Error('El estante destino no pertenece a la ubicacion de la existencia');
+          error.status = 400;
+          throw error;
+        }
+      }
+
+      if (String(current.shelfId || '') === String(nextShelfId || '')) {
+        const error = new Error('Selecciona un estante distinto al actual');
+        error.status = 400;
+        throw error;
+      }
+
+      const targetResult = await new sql.Request(transaction)
+        .input('id', sql.Int, Number(id))
+        .input('productId', sql.Int, current.productId)
+        .input('variantId', sql.Int, nullableInt(current.variantId))
+        .input('locationId', sql.Int, current.locationId)
+        .input('shelfId', sql.Int, nextShelfId)
+        .query(`
+          SELECT id
+          FROM InventoryStock
+          WHERE id <> @id
+            AND productId = @productId
+            AND locationId = @locationId
+            AND ((variantId IS NULL AND @variantId IS NULL) OR variantId = @variantId)
+            AND ((shelfId IS NULL AND @shelfId IS NULL) OR shelfId = @shelfId)
+        `);
+      const target = targetResult.recordset[0];
+
+      if (target) {
+        await new sql.Request(transaction)
+          .input('id', sql.Int, target.id)
+          .input('quantity', sql.Decimal(18, 2), current.quantity)
+          .query('UPDATE InventoryStock SET quantity = quantity + @quantity, updatedAt = SYSUTCDATETIME() WHERE id = @id');
+        await new sql.Request(transaction)
+          .input('id', sql.Int, Number(id))
+          .query('DELETE FROM InventoryStock WHERE id = @id');
+      } else {
+        await new sql.Request(transaction)
+          .input('id', sql.Int, Number(id))
+          .input('shelfId', sql.Int, nextShelfId)
+          .query('UPDATE InventoryStock SET shelfId = @shelfId, updatedAt = SYSUTCDATETIME() WHERE id = @id');
+      }
+
+      await InventoryModel.insertMovement(transaction, current.productId, current.variantId, current.locationId, current.shelfId, 'salida', current.quantity, 'reubicacion', Number(id), 'Cambio de estante');
+      await InventoryModel.insertMovement(transaction, current.productId, current.variantId, current.locationId, nextShelfId, 'entrada', current.quantity, 'reubicacion', Number(id), 'Cambio de estante');
+
+      await transaction.commit();
+      return { ok: true };
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
+    }
+  }
+
   static async listPurchases() {
     const pool = await poolPromise;
     const result = await pool.request().query(`

@@ -61,6 +61,7 @@ router.get('/quotations/:id/pdf', requireRoles(...QUOTATIONS), InventoryControll
 router.post('/quotations/:id/approve', requireRoles(...QUOTATIONS), InventoryController.approveQuotation);
 
 router.get('/stock', requireRoles(...STOCK), InventoryController.listStock);
+router.put('/stock/:id/shelf', requireRoles(...STOCK), InventoryController.moveStockShelf);
 
 router.get('/purchases', requireRoles(...PURCHASES), InventoryController.listPurchases);
 router.post('/purchases', requireRoles(...PURCHASES), InventoryController.createPurchase);

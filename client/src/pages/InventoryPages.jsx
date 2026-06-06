@@ -2603,7 +2603,36 @@ export function QuotationForm() {
 }
 
 export function StockList() {
-  const { rows, loading, error } = useList('/inventory/stock')
+  const { rows, loading, error, load } = useList('/inventory/stock')
+  const shelves = useList('/inventory/shelves')
+  const [moveTarget, setMoveTarget] = useState(null)
+  const [targetShelfId, setTargetShelfId] = useState('')
+  const [moving, setMoving] = useState(false)
+  const toast = useToast()
+  const targetShelves = useMemo(() => (
+    moveTarget ? shelves.rows.filter((item) => String(item.locationId) === String(moveTarget.locationId)) : []
+  ), [shelves.rows, moveTarget])
+
+  const openShelfMove = (row) => {
+    setMoveTarget(row)
+    setTargetShelfId(row.shelfId ? String(row.shelfId) : '')
+  }
+
+  const submitShelfMove = async () => {
+    if (!moveTarget) return
+    setMoving(true)
+    try {
+      await api.put(`/inventory/stock/${moveTarget.id}/shelf`, { targetShelfId: targetShelfId || null })
+      toast({ title: 'Estante actualizado', status: 'success', duration: 2500, isClosable: true })
+      setMoveTarget(null)
+      await load()
+    } catch (err) {
+      toast({ title: 'No se pudo cambiar el estante', description: err.response?.data?.error || err.message, status: 'error', duration: 3500, isClosable: true })
+    } finally {
+      setMoving(false)
+    }
+  }
+
   return (
     <Box>
       <PageHeader title="Existencias" />
@@ -2620,7 +2649,38 @@ export function StockList() {
         rows={rows}
         loading={loading}
         error={error}
+        actions={(row) => (
+          <Tooltip label="Cambiar estante" hasArrow>
+            <IconButton aria-label="Cambiar estante" icon={<EditIcon />} size="sm" variant="outline" onClick={() => openShelfMove(row)} />
+          </Tooltip>
+        )}
       />
+      <Modal isOpen={!!moveTarget} onClose={() => setMoveTarget(null)}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Cambiar estante</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack align="stretch" spacing={4}>
+              <Box>
+                <Text fontWeight="semibold">{moveTarget?.variantName || moveTarget?.productName}</Text>
+                <Text fontSize="sm" color="gray.600">{moveTarget?.locationName} | Stock: {moveTarget?.quantity}</Text>
+              </Box>
+              <FormControl>
+                <FormLabel>Nuevo estante</FormLabel>
+                <Select value={targetShelfId} onChange={(e) => setTargetShelfId(e.target.value)} isDisabled={shelves.loading}>
+                  <option value="">Sin estante</option>
+                  {targetShelves.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                </Select>
+              </FormControl>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={() => setMoveTarget(null)}>Cancelar</Button>
+            <Button colorScheme="blue" isLoading={moving} onClick={submitShelfMove}>Guardar</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   )
 }

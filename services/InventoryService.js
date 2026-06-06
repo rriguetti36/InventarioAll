@@ -5,7 +5,7 @@ const SaleDocumentPdfService = require('./SaleDocumentPdfService');
 const CompanyProfileService = require('./CompanyProfileService');
 
 function scopedSellerId(user) {
-  return ['comercial', 'vendedor_tienda'].includes(user?.role) ? user.id : null;
+  return user?.role && user.role !== 'admin' ? user.id : null;
 }
 
 function required(data, fields) {
@@ -202,6 +202,16 @@ class InventoryService {
 
   static listStock(user) {
     return InventoryModel.listStock(scopedLocationId(user));
+  }
+
+  static moveStockShelf(id, data, user) {
+    const stockId = Number(id);
+    if (!Number.isInteger(stockId) || stockId <= 0) {
+      const error = new Error('Existencia invalida');
+      error.status = 400;
+      throw error;
+    }
+    return InventoryModel.moveStockShelf(stockId, data.targetShelfId, scopedLocationId(user));
   }
 
   static listPurchases() {
