@@ -4,6 +4,7 @@ import { Box } from '@chakra-ui/react'
 import Login from './pages/Login'
 import RegisterCompany from './pages/RegisterCompany'
 import CompanyAdmin from './pages/CompanyAdmin'
+import CompanyProfile from './pages/CompanyProfile'
 import Dashboard from './pages/Dashboard'
 import CreateUser from './pages/CreateUser'
 import UserList from './pages/UserList'
@@ -28,6 +29,16 @@ import {
   SupplierForm,
   SupplierList,
   KardexList,
+  InventoryReportsHome,
+  KardexReport,
+  InventoryAgingReport,
+  InventoryMarginReport,
+  PurchasesReport,
+  RotationReport,
+  SalesReport,
+  StockReplenishmentReport,
+  StockTransfersReport,
+  StockValuationReport,
   TransferForm,
   TransferList,
 } from './pages/InventoryPages'
@@ -46,6 +57,7 @@ export default function App(){
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard/></ProtectedRoute>} />
         <Route path="/users" element={<ProtectedRoute><AdminRoute><DashboardLayout><UserList/></DashboardLayout></AdminRoute></ProtectedRoute>} />
         <Route path="/users/add" element={<ProtectedRoute><AdminRoute><DashboardLayout><CreateUser/></DashboardLayout></AdminRoute></ProtectedRoute>} />
+        <Route path="/company-profile" element={<ProtectedRoute><AdminRoute><DashboardLayout><CompanyProfile/></DashboardLayout></AdminRoute></ProtectedRoute>} />
         <Route path="/companies" element={<ProtectedRoute><PlatformAdminRoute><DashboardLayout><CompanyAdmin/></DashboardLayout></PlatformAdminRoute></ProtectedRoute>} />
         <Route path="/inventory/products" element={<ProtectedRoute><RoleRoute section="products"><DashboardLayout><ProductList/></DashboardLayout></RoleRoute></ProtectedRoute>} />
         <Route path="/inventory/products/add" element={<ProtectedRoute><RoleRoute section="products"><DashboardLayout><ProductForm/></DashboardLayout></RoleRoute></ProtectedRoute>} />
@@ -76,6 +88,16 @@ export default function App(){
         <Route path="/inventory/sales/add" element={<ProtectedRoute><RoleRoute section="sales"><DashboardLayout><SaleForm/></DashboardLayout></RoleRoute></ProtectedRoute>} />
         <Route path="/inventory/stock" element={<ProtectedRoute><RoleRoute section="stock"><DashboardLayout><StockList/></DashboardLayout></RoleRoute></ProtectedRoute>} />
         <Route path="/inventory/kardex" element={<ProtectedRoute><RoleRoute section="kardex"><DashboardLayout><KardexList/></DashboardLayout></RoleRoute></ProtectedRoute>} />
+        <Route path="/inventory/reports" element={<ProtectedRoute><RoleRoute section="reports"><DashboardLayout><InventoryReportsHome/></DashboardLayout></RoleRoute></ProtectedRoute>} />
+        <Route path="/inventory/reports/sales" element={<ProtectedRoute><RoleRoute section="sales"><DashboardLayout><SalesReport/></DashboardLayout></RoleRoute></ProtectedRoute>} />
+        <Route path="/inventory/reports/purchases" element={<ProtectedRoute><RoleRoute section="purchases"><DashboardLayout><PurchasesReport/></DashboardLayout></RoleRoute></ProtectedRoute>} />
+        <Route path="/inventory/reports/kardex" element={<ProtectedRoute><RoleRoute section="kardex"><DashboardLayout><KardexReport/></DashboardLayout></RoleRoute></ProtectedRoute>} />
+        <Route path="/inventory/reports/stock-valuation" element={<ProtectedRoute><RoleRoute section="stock"><DashboardLayout><StockValuationReport/></DashboardLayout></RoleRoute></ProtectedRoute>} />
+        <Route path="/inventory/reports/low-stock" element={<ProtectedRoute><RoleRoute section="stock"><DashboardLayout><StockReplenishmentReport/></DashboardLayout></RoleRoute></ProtectedRoute>} />
+        <Route path="/inventory/reports/rotation" element={<ProtectedRoute><RoleRoute section="kardex"><DashboardLayout><RotationReport/></DashboardLayout></RoleRoute></ProtectedRoute>} />
+        <Route path="/inventory/reports/aging" element={<ProtectedRoute><RoleRoute section="stock"><DashboardLayout><InventoryAgingReport/></DashboardLayout></RoleRoute></ProtectedRoute>} />
+        <Route path="/inventory/reports/transfers" element={<ProtectedRoute><RoleRoute section="transfers"><DashboardLayout><StockTransfersReport/></DashboardLayout></RoleRoute></ProtectedRoute>} />
+        <Route path="/inventory/reports/margin" element={<ProtectedRoute><RoleRoute section="stock"><DashboardLayout><InventoryMarginReport/></DashboardLayout></RoleRoute></ProtectedRoute>} />
       </Routes>
     </Box>
   )

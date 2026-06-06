@@ -2,6 +2,7 @@ const InventoryModel = require('../models/InventoryModel');
 const { scopedLocationId } = require('../middleware/roleAccess');
 const QuotationPdfService = require('./QuotationPdfService');
 const SaleDocumentPdfService = require('./SaleDocumentPdfService');
+const CompanyProfileService = require('./CompanyProfileService');
 
 function scopedSellerId(user) {
   return ['comercial', 'vendedor_tienda'].includes(user?.role) ? user.id : null;
@@ -187,7 +188,8 @@ class InventoryService {
   static async getQuotationPdf(id, user) {
     const sellerId = scopedSellerId(user);
     const documentData = await InventoryModel.getQuotationDocument(id, sellerId);
-    const buffer = await QuotationPdfService.build(documentData);
+    const company = await CompanyProfileService.getProfile();
+    const buffer = await QuotationPdfService.build({ ...documentData, company });
     return {
       buffer,
       filename: `cotizacion-${documentData.header.quotationNumber}.pdf`,

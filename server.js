@@ -8,6 +8,8 @@ const userRoutes = require('./routes/userRoutes');
 const authRoutes = require('./routes/authRoutes');
 const inventoryRoutes = require('./routes/inventoryRoutes');
 const companyRoutes = require('./routes/companyRoutes');
+const companyProfileRoutes = require('./routes/companyProfileRoutes');
+const uploadRoutes = require('./routes/uploadRoutes');
 
 // Ejecutar migraciones
 migrateAddRoleColumn();
@@ -23,11 +25,14 @@ const allowedOrigin = process.env.CLIENT_ORIGIN || /http:\/\/localhost:\d+/;
 app.use(cors({ origin: allowedOrigin, credentials: true }));
 const DEFAULT_PORT = parseInt(process.env.PORT, 10) || 3001;
 
-app.use(express.json());
+app.use(express.json({ limit: '5mb' }));
+app.use('/uploads', express.static('uploads'));
 app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/companies', companyRoutes);
+app.use('/api/company-profile', companyProfileRoutes);
+app.use('/api/uploads', uploadRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'API Express + SQL Server Express funcionando' });

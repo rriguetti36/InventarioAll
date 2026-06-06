@@ -83,9 +83,10 @@ BEGIN
     sku NVARCHAR(60) NOT NULL UNIQUE,
     name NVARCHAR(180) NOT NULL,
     type NVARCHAR(60) NOT NULL DEFAULT 'otros',
+    category NVARCHAR(120) NULL,
     model NVARCHAR(120) NULL,
     description NVARCHAR(500) NULL,
-    imageUrl NVARCHAR(500) NULL,
+    imageUrl NVARCHAR(MAX) NULL,
     attributesJson NVARCHAR(MAX) NULL,
     supplierId INT NULL,
     unit NVARCHAR(30) NOT NULL DEFAULT 'unidad',
@@ -106,15 +107,49 @@ BEGIN
 END
 GO
 
+IF COL_LENGTH('dbo.Products', 'category') IS NULL
+BEGIN
+  ALTER TABLE dbo.Products ADD category NVARCHAR(120) NULL;
+END
+GO
+
 IF COL_LENGTH('dbo.Products', 'attributesJson') IS NULL
 BEGIN
   ALTER TABLE dbo.Products ADD attributesJson NVARCHAR(MAX) NULL;
 END
 GO
 
+IF COL_LENGTH('dbo.Products', 'imageUrl') IS NOT NULL
+BEGIN
+  ALTER TABLE dbo.Products ALTER COLUMN imageUrl NVARCHAR(MAX) NULL;
+END
+GO
+
 IF COL_LENGTH('dbo.Products', 'affectsTax') IS NULL
 BEGIN
   ALTER TABLE dbo.Products ADD affectsTax BIT NOT NULL CONSTRAINT DF_Products_AffectsTax DEFAULT 1;
+END
+GO
+
+IF OBJECT_ID('dbo.CompanyProfile', 'U') IS NULL
+BEGIN
+  CREATE TABLE dbo.CompanyProfile (
+    id INT NOT NULL CONSTRAINT PK_CompanyProfile PRIMARY KEY CONSTRAINT DF_CompanyProfile_Id DEFAULT 1,
+    legalName NVARCHAR(180) NULL,
+    ruc NVARCHAR(20) NULL,
+    phones NVARCHAR(250) NULL,
+    whatsappPhones NVARCHAR(250) NULL,
+    address NVARCHAR(300) NULL,
+    email NVARCHAR(150) NULL,
+    industry NVARCHAR(120) NULL,
+    taxRate DECIMAL(5,2) NOT NULL CONSTRAINT DF_CompanyProfile_TaxRate DEFAULT 18,
+    logoDataUrl NVARCHAR(MAX) NULL,
+    bankAccountsJson NVARCHAR(MAX) NULL,
+    website NVARCHAR(250) NULL,
+    socialLinksJson NVARCHAR(MAX) NULL,
+    createdAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    updatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+  );
 END
 GO
 

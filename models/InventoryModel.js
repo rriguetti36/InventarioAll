@@ -402,9 +402,10 @@ class InventoryModel {
         .input('sku', sql.NVarChar(60), data.sku)
         .input('name', sql.NVarChar(180), data.name)
         .input('type', sql.NVarChar(60), data.type || 'otros')
+        .input('category', sql.NVarChar(120), text(data.category))
         .input('model', sql.NVarChar(120), text(data.model))
         .input('description', sql.NVarChar(500), data.description || null)
-        .input('imageUrl', sql.NVarChar(500), data.imageUrl || null)
+        .input('imageUrl', sql.NVarChar(sql.MAX), data.imageUrl || null)
         .input('attributesJson', sql.NVarChar(sql.MAX), text(data.attributesJson))
         .input('supplierId', sql.Int, nullableInt(data.supplierId))
         .input('unit', sql.NVarChar(30), data.unit || 'unidad')
@@ -414,9 +415,9 @@ class InventoryModel {
       .input('affectsTax', sql.Bit, bit(data.affectsTax))
       .input('estado', sql.Bit, bit(data.estado))
       .query(`
-          INSERT INTO Products (sku, name, type, model, description, imageUrl, attributesJson, supplierId, unit, minStock, costPrice, salePrice, affectsTax, estado)
+          INSERT INTO Products (sku, name, type, category, model, description, imageUrl, attributesJson, supplierId, unit, minStock, costPrice, salePrice, affectsTax, estado)
           OUTPUT INSERTED.*
-          VALUES (@sku, @name, @type, @model, @description, @imageUrl, @attributesJson, @supplierId, @unit, @minStock, @costPrice, @salePrice, @affectsTax, @estado)
+          VALUES (@sku, @name, @type, @category, @model, @description, @imageUrl, @attributesJson, @supplierId, @unit, @minStock, @costPrice, @salePrice, @affectsTax, @estado)
       `);
       const product = result.recordset[0];
       await InventoryModel.replaceProductCharacteristics(transaction, product.id, data.characteristics);
@@ -439,9 +440,10 @@ class InventoryModel {
         .input('sku', sql.NVarChar(60), data.sku)
         .input('name', sql.NVarChar(180), data.name)
         .input('type', sql.NVarChar(60), data.type || 'otros')
+        .input('category', sql.NVarChar(120), text(data.category))
         .input('model', sql.NVarChar(120), text(data.model))
         .input('description', sql.NVarChar(500), data.description || null)
-        .input('imageUrl', sql.NVarChar(500), data.imageUrl || null)
+        .input('imageUrl', sql.NVarChar(sql.MAX), data.imageUrl || null)
         .input('attributesJson', sql.NVarChar(sql.MAX), text(data.attributesJson))
         .input('supplierId', sql.Int, nullableInt(data.supplierId))
         .input('unit', sql.NVarChar(30), data.unit || 'unidad')
@@ -452,7 +454,7 @@ class InventoryModel {
         .input('estado', sql.Bit, bit(data.estado))
         .query(`
           UPDATE Products
-          SET sku = @sku, name = @name, type = @type, model = @model, description = @description,
+          SET sku = @sku, name = @name, type = @type, category = @category, model = @model, description = @description,
               imageUrl = @imageUrl, attributesJson = @attributesJson, supplierId = @supplierId,
               unit = @unit, minStock = @minStock, costPrice = @costPrice, salePrice = @salePrice,
               affectsTax = @affectsTax, estado = @estado, updatedAt = SYSUTCDATETIME()
@@ -894,9 +896,11 @@ class InventoryModel {
     const result = await pool.request()
       .input('locationId', sql.Int, nullableInt(locationId))
       .query(`
-      SELECT st.*, p.sku, p.name AS productName, p.type AS productType, v.displayName AS variantName, l.name AS locationName, sh.name AS shelfName
+      SELECT st.*, p.sku, p.name AS productName, p.type AS productType, p.category, p.unit, p.minStock, p.costPrice, p.salePrice,
+             s.name AS supplierName, v.sku AS variantSku, v.displayName AS variantName, l.name AS locationName, sh.name AS shelfName
       FROM InventoryStock st
       INNER JOIN Products p ON p.id = st.productId
+      LEFT JOIN Suppliers s ON s.id = p.supplierId
       LEFT JOIN ProductVariants v ON v.id = st.variantId
       INNER JOIN InventoryLocations l ON l.id = st.locationId
       LEFT JOIN Shelves sh ON sh.id = st.shelfId

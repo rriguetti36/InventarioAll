@@ -22,9 +22,9 @@ export function canAccess(user, section) {
 
   const permissions = {
     user: ['dashboard'],
-    admin_tienda: ['dashboard', 'stock', 'sales', 'quotations', 'customers', 'paymentMethods', 'kardex'],
-    comercial: ['dashboard', 'stock', 'quotations', 'paymentMethods', 'kardex'],
-    vendedor_tienda: ['dashboard', 'stock', 'sales', 'quotations', 'customers', 'kardex'],
+    admin_tienda: ['dashboard', 'stock', 'sales', 'quotations', 'customers', 'paymentMethods', 'kardex', 'reports'],
+    comercial: ['dashboard', 'stock', 'quotations', 'paymentMethods', 'kardex', 'reports'],
+    vendedor_tienda: ['dashboard', 'stock', 'sales', 'quotations', 'customers', 'kardex', 'reports'],
   }
 
   return (permissions[role] || []).includes(section)

@@ -33,7 +33,7 @@ import {
   VStack,
   useToast,
 } from '@chakra-ui/react'
-import { AddIcon, ArrowBackIcon, CheckIcon, DeleteIcon, EditIcon, ViewIcon } from '@chakra-ui/icons'
+import { AddIcon, ArrowBackIcon, CheckIcon, DeleteIcon, DownloadIcon, EditIcon, ViewIcon } from '@chakra-ui/icons'
 import { useNavigate, useParams } from 'react-router-dom'
 import api from '../services/api'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -43,7 +43,74 @@ const today = new Date().toISOString().slice(0, 10)
 const attributeTemplates = {
   prenda: ['talla', 'color', 'material', 'genero', 'temporada'],
   repuesto: ['marca', 'tipoMedida', 'largo', 'ancho', 'alto', 'diametro', 'peso', 'compatibilidad'],
+  materia_prima: ['grado', 'origen', 'lote', 'pureza', 'presentacion'],
+  producto_terminado: ['marca', 'modelo', 'presentacion'],
+  semiterminado: ['etapa', 'proceso', 'lote'],
+  insumo: ['marca', 'presentacion', 'uso'],
+  herramienta: ['marca', 'medida', 'material'],
+  equipo: ['marca', 'modelo', 'serie', 'potencia'],
+  accesorio: ['marca', 'compatibilidad', 'color'],
+  consumible: ['marca', 'presentacion', 'vidaUtil'],
+  servicio: ['modalidad', 'duracion', 'alcance'],
+  kit: ['componentes', 'presentacion'],
+  digital: ['licencia', 'version', 'plataforma'],
+  activo_fijo: ['marca', 'modelo', 'serie', 'ubicacion'],
+  envase: ['material', 'capacidad', 'presentacion'],
+  mercaderia: ['marca', 'modelo', 'presentacion'],
   otros: ['marca', 'serie', 'presentacion'],
+}
+
+const productTypeOptions = [
+  { value: 'materia_prima', label: 'Materia prima' },
+  { value: 'producto_terminado', label: 'Producto terminado' },
+  { value: 'semiterminado', label: 'Producto semiterminado' },
+  { value: 'insumo', label: 'Insumo' },
+  { value: 'repuesto', label: 'Repuesto' },
+  { value: 'herramienta', label: 'Herramienta' },
+  { value: 'equipo', label: 'Equipo' },
+  { value: 'accesorio', label: 'Accesorio' },
+  { value: 'consumible', label: 'Consumible' },
+  { value: 'servicio', label: 'Servicio' },
+  { value: 'kit', label: 'Combo o kit' },
+  { value: 'digital', label: 'Producto digital' },
+  { value: 'activo_fijo', label: 'Activo fijo' },
+  { value: 'envase', label: 'Envase o empaque' },
+  { value: 'mercaderia', label: 'Mercaderia para reventa' },
+  { value: 'prenda', label: 'Prenda' },
+  { value: 'otros', label: 'Otros' },
+]
+
+const productCategoryOptions = [
+  'Alimentos y bebidas',
+  'Ropa, calzado y textiles',
+  'Ferreteria y construccion',
+  'Automotriz y repuestos',
+  'Tecnologia y electronica',
+  'Farmacia y salud',
+  'Belleza y cuidado personal',
+  'Hogar y decoracion',
+  'Muebles',
+  'Libreria y oficina',
+  'Juguetes',
+  'Deportes',
+  'Agricultura y ganaderia',
+  'Veterinaria y mascotas',
+  'Industria y manufactura',
+  'Restaurantes y cocina',
+  'Limpieza',
+  'Seguridad industrial',
+  'Electricidad',
+  'Plomeria',
+  'Pinturas',
+  'Quimicos',
+  'Maquinaria',
+  'Mineria',
+  'Servicios profesionales',
+  'Otros',
+]
+
+function productTypeLabel(value) {
+  return productTypeOptions.find((item) => item.value === value)?.label || value || '-'
 }
 
 function parseAttributes(value) {
@@ -280,6 +347,195 @@ function DetailTable({ columns, rows, actions, maxH = '360px' }) {
   )
 }
 
+function formatMoney(value) {
+  return Number(value || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function rowDate(row, key) {
+  return String(row[key] || '').slice(0, 10)
+}
+
+function filterByDateRange(rows, dateKey, filters) {
+  return rows.filter((row) => {
+    const date = rowDate(row, dateKey)
+    if (filters.from && date < filters.from) return false
+    if (filters.to && date > filters.to) return false
+    if (filters.location && String(row.locationName || '').toLowerCase() !== filters.location.toLowerCase()) return false
+    return true
+  })
+}
+
+function SummaryTile({ label, value, hint }) {
+  return (
+    <Box bg="white" borderWidth="1px" borderRadius="md" p={4} boxShadow="sm">
+      <Text fontSize="sm" color="gray.600">{label}</Text>
+      <Heading size="md" mt={1}>{value}</Heading>
+      {hint && <Text fontSize="xs" color="gray.500" mt={1}>{hint}</Text>}
+    </Box>
+  )
+}
+
+function ReportFilters({ filters, setFilters, locations }) {
+  return (
+    <Box bg="white" borderWidth="1px" borderRadius="md" p={4} mb={4}>
+      <SimpleGrid columns={{ base: 1, md: 4 }} spacing={3}>
+        <FormControl>
+          <FormLabel>Desde</FormLabel>
+          <Input type="date" value={filters.from} onChange={(e) => setFilters((prev) => ({ ...prev, from: e.target.value }))} />
+        </FormControl>
+        <FormControl>
+          <FormLabel>Hasta</FormLabel>
+          <Input type="date" value={filters.to} onChange={(e) => setFilters((prev) => ({ ...prev, to: e.target.value }))} />
+        </FormControl>
+        <FormControl>
+          <FormLabel>Ubicacion</FormLabel>
+          <Select value={filters.location} onChange={(e) => setFilters((prev) => ({ ...prev, location: e.target.value }))}>
+            <option value="">Todas</option>
+            {locations.map((location) => <option key={location} value={location}>{location}</option>)}
+          </Select>
+        </FormControl>
+        <Flex align="end">
+          <Button w="100%" variant="outline" onClick={() => setFilters({ from: '', to: '', location: '' })}>
+            Limpiar filtros
+          </Button>
+        </Flex>
+      </SimpleGrid>
+    </Box>
+  )
+}
+
+function LocationReportFilter({ location, setLocation, locations }) {
+  return (
+    <Box bg="white" borderWidth="1px" borderRadius="md" p={4} mb={4}>
+      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={3}>
+        <FormControl>
+          <FormLabel>Ubicacion</FormLabel>
+          <Select value={location} onChange={(e) => setLocation(e.target.value)}>
+            <option value="">Todas</option>
+            {locations.map((item) => <option key={item} value={item}>{item}</option>)}
+          </Select>
+        </FormControl>
+        <Flex align="end">
+          <Button w="100%" variant="outline" onClick={() => setLocation('')}>
+            Limpiar filtros
+          </Button>
+        </Flex>
+      </SimpleGrid>
+    </Box>
+  )
+}
+
+function ReportShell({ title, children }) {
+  return (
+    <Box>
+      <PageHeader title={title} backTo="/inventory/reports" />
+      {children}
+    </Box>
+  )
+}
+
+function reportLocations(rows) {
+  return [...new Set(rows.map((row) => row.locationName).filter(Boolean))].sort()
+}
+
+function topByAmount(rows, nameKey) {
+  const totals = rows.reduce((acc, row) => {
+    const name = row[nameKey] || 'Sin asignar'
+    acc[name] = (acc[name] || 0) + Number(row.total || 0)
+    return acc
+  }, {})
+  return Object.entries(totals)
+    .map(([name, total], index) => ({ id: `${name}-${index}`, name, total }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5)
+}
+
+function escapeExcelCell(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+function exportToExcel(filename, columns, rows) {
+  const header = columns.map((column) => `<th>${escapeExcelCell(column.label)}</th>`).join('')
+  const body = rows.map((row) => (
+    `<tr>${columns.map((column) => {
+      const rendered = column.export ? column.export(row) : column.render ? column.render(row) : row[column.key]
+      const value = ['string', 'number', 'boolean'].includes(typeof rendered) ? rendered : row[column.key]
+      return `<td>${escapeExcelCell(value)}</td>`
+    }).join('')}</tr>`
+  )).join('')
+  const html = `<html><head><meta charset="UTF-8" /></head><body><table><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table></body></html>`
+  const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `${filename}.xls`
+  link.click()
+  URL.revokeObjectURL(link.href)
+}
+
+function ReportDataTable({ filename, columns, rows, loading, error, searchable = true }) {
+  return (
+    <Box>
+      <Flex justify="flex-end" mb={3}>
+        <Button leftIcon={<DownloadIcon />} colorScheme="green" variant="outline" onClick={() => exportToExcel(filename, columns, rows)} isDisabled={loading || Boolean(error)}>
+          Exportar a Excel
+        </Button>
+      </Flex>
+      <DataTable columns={columns} rows={rows} loading={loading} error={error} searchable={searchable} />
+    </Box>
+  )
+}
+
+function movementDate(row) {
+  return String(row.createdAt || '').replace('T', ' ').slice(0, 19)
+}
+
+function stockLabel(row) {
+  return row.variantName || row.productName || '-'
+}
+
+function buildRotationRows(rows) {
+  const grouped = rows.reduce((acc, row) => {
+    const key = `${row.variantSku || row.sku || ''}-${row.locationName || ''}`
+    if (!acc[key]) {
+      acc[key] = {
+        id: key,
+        sku: row.variantSku || row.sku,
+        item: row.variantName || row.productName,
+        locationName: row.locationName,
+        entries: 0,
+        exits: 0,
+        adjustments: 0,
+        lastMovement: row.createdAt,
+      }
+    }
+    if (row.movementType === 'entrada') acc[key].entries += Number(row.quantity || 0)
+    if (row.movementType === 'salida') acc[key].exits += Number(row.quantity || 0)
+    if (row.movementType === 'ajuste') acc[key].adjustments += Number(row.quantity || 0)
+    if (String(row.createdAt || '') > String(acc[key].lastMovement || '')) acc[key].lastMovement = row.createdAt
+    return acc
+  }, {})
+  return Object.values(grouped).sort((a, b) => b.exits - a.exits)
+}
+
+function buildAgingRows(stockRows, kardexRows) {
+  const lastByStock = kardexRows.reduce((acc, row) => {
+    const key = `${row.variantSku || row.sku || ''}-${row.locationName || ''}-${row.shelfName || ''}`
+    if (!acc[key] || String(row.createdAt || '') > String(acc[key] || '')) acc[key] = row.createdAt
+    return acc
+  }, {})
+  const now = new Date()
+  return stockRows.map((row) => {
+    const key = `${row.variantSku || row.sku || ''}-${row.locationName || ''}-${row.shelfName || ''}`
+    const lastMovement = lastByStock[key]
+    const daysWithoutMovement = lastMovement ? Math.max(0, Math.floor((now - new Date(lastMovement)) / 86400000)) : null
+    return { ...row, lastMovement, daysWithoutMovement }
+  }).sort((a, b) => (b.daysWithoutMovement ?? 99999) - (a.daysWithoutMovement ?? 99999))
+}
+
 function useList(endpoint) {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
@@ -466,10 +722,21 @@ export function ProductList() {
       addTo="/inventory/products/add"
       editTo="/inventory/products/edit"
       columns={[
-        { key: 'imageUrl', label: 'Imagen', render: (row) => row.imageUrl ? <Image src={row.imageUrl} boxSize="48px" objectFit="cover" borderRadius="md" /> : '-' },
+        {
+          key: 'imageUrl',
+          label: 'Foto',
+          render: (row) => row.imageUrl ? (
+            <Image src={row.imageUrl} boxSize="56px" objectFit="cover" borderRadius="md" borderWidth="1px" bg="gray.50" />
+          ) : (
+            <Flex boxSize="56px" align="center" justify="center" borderWidth="1px" borderRadius="md" bg="gray.50">
+              <Text fontSize="xs" color="gray.500">Sin foto</Text>
+            </Flex>
+          ),
+        },
         { key: 'sku', label: 'SKU' },
         { key: 'name', label: 'Producto' },
-        { key: 'type', label: 'Tipo' },
+        { key: 'category', label: 'Rubro', render: (row) => row.category || '-' },
+        { key: 'type', label: 'Tipo', render: (row) => productTypeLabel(row.type) },
         { key: 'model', label: 'Modelo', render: (row) => row.model || '-' },
         { key: 'characteristics', label: 'Caracteristicas', render: (row) => summarizeAttributes(row.characteristics) },
         { key: 'supplierName', label: 'Proveedor', render: (row) => row.supplierName || '-' },
@@ -485,6 +752,7 @@ export function ProductForm() {
   const [isVariableOpen, setIsVariableOpen] = useState(false)
   const [newCharacteristic, setNewCharacteristic] = useState('')
   const [valueDrafts, setValueDrafts] = useState({})
+  const toast = useToast()
   const state = window.history.state?.usr
   const defaults = state
     ? {
@@ -494,7 +762,7 @@ export function ProductForm() {
           values: item.value ? [item.value] : [],
         })),
       }
-    : { sku: '', name: '', type: 'repuesto', model: '', description: '', imageUrl: '', characteristics: [], supplierId: '', unit: 'unidad', minStock: 0, costPrice: 0, salePrice: 0, affectsTax: 1, estado: 1 }
+    : { sku: '', name: '', type: 'repuesto', category: '', model: '', description: '', imageUrl: '', characteristics: [], supplierId: '', unit: 'unidad', minStock: 0, costPrice: 0, salePrice: 0, affectsTax: 1, estado: 1 }
 
   return (
     <CatalogForm title={state ? 'Editar Producto' : 'Crear Producto'} endpoint="/inventory/products" backTo="/inventory/products" defaults={defaults}>
@@ -544,15 +812,108 @@ export function ProductForm() {
           setCharacteristicValues(name, valuesFor(name).filter((item) => item !== value))
         }
 
+        const uploadProductImage = async (event) => {
+          const file = event.target.files?.[0]
+          if (!file) return
+          if (!file.type.startsWith('image/')) {
+            toast({ title: 'Selecciona una imagen valida', status: 'warning', duration: 3000, isClosable: true })
+            return
+          }
+          if (file.size > 2 * 1024 * 1024) {
+            toast({ title: 'La foto debe pesar menos de 2 MB', status: 'warning', duration: 3000, isClosable: true })
+            return
+          }
+          const reader = new FileReader()
+          reader.onload = async () => {
+            try {
+              const res = await api.post('/uploads/product-image', {
+                dataUrl: reader.result,
+                mimeType: file.type,
+              })
+              setFormData((prev) => ({ ...prev, imageUrl: res.data.url }))
+              toast({ title: 'Foto subida', status: 'success', duration: 2500, isClosable: true })
+            } catch (err) {
+              toast({ title: 'Error al subir foto', description: err.response?.data?.error || err.message, status: 'error', duration: 3000, isClosable: true })
+            }
+          }
+          reader.readAsDataURL(file)
+        }
+
         return (
           <>
-            <FormControl isRequired><FormLabel>SKU</FormLabel><Input name="sku" value={formData.sku} onChange={handleChange} /></FormControl>
-            <FormControl isRequired><FormLabel>Nombre</FormLabel><Input name="name" value={formData.name} onChange={handleChange} /></FormControl>
-            <Flex gap={4} direction={{ base: 'column', md: 'row' }}>
-              <FormControl><FormLabel>Tipo</FormLabel><Select name="type" value={formData.type} onChange={handleChange}><option value="repuesto">Repuesto</option><option value="prenda">Prenda</option><option value="otros">Otros</option></Select></FormControl>
-              <FormControl><FormLabel>Modelo</FormLabel><Input name="model" value={formData.model || ''} onChange={handleChange} /></FormControl>
-            </Flex>
-            <FormControl><FormLabel>URL de imagen</FormLabel><Input name="imageUrl" value={formData.imageUrl || ''} onChange={handleChange} /></FormControl>
+            <SimpleGrid columns={{ base: 1, md: 12 }} spacing={4}>
+              <Box gridColumn={{ base: 'span 1', md: 'span 4' }}>
+                <FormControl isRequired><FormLabel>SKU</FormLabel><Input name="sku" value={formData.sku} onChange={handleChange} /></FormControl>
+              </Box>
+              <Box gridColumn={{ base: 'span 1', md: 'span 8' }}>
+                <FormControl isRequired><FormLabel>Nombre</FormLabel><Input name="name" value={formData.name} onChange={handleChange} /></FormControl>
+              </Box>
+              <Box gridColumn={{ base: 'span 1', md: 'span 4' }}>
+                <FormControl>
+                <FormLabel>Rubro</FormLabel>
+                <Input name="category" list="product-category-options" value={formData.category || ''} onChange={handleChange} placeholder="Selecciona o escribe un rubro" />
+                <datalist id="product-category-options">
+                  {productCategoryOptions.map((item) => <option key={item} value={item} />)}
+                </datalist>
+                </FormControl>
+              </Box>
+              <Box gridColumn={{ base: 'span 1', md: 'span 4' }}>
+                <FormControl>
+                  <FormLabel>Tipo</FormLabel>
+                  <Select name="type" value={formData.type} onChange={handleChange}>
+                    {productTypeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                  </Select>
+                </FormControl>
+              </Box>
+              <Box gridColumn={{ base: 'span 1', md: 'span 4' }}>
+                <FormControl><FormLabel>Modelo</FormLabel><Input name="model" value={formData.model || ''} onChange={handleChange} /></FormControl>
+              </Box>
+              <Box gridColumn={{ base: 'span 1', md: 'span 4' }}>
+                <FormControl><FormLabel>Proveedor</FormLabel><Select name="supplierId" value={formData.supplierId || ''} onChange={handleChange}><option value="">Sin proveedor</option>{suppliers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></FormControl>
+              </Box>
+              <Box gridColumn={{ base: 'span 1', md: 'span 4' }}>
+                <FormControl><FormLabel>Unidad</FormLabel><Input name="unit" value={formData.unit} onChange={handleChange} /></FormControl>
+              </Box>
+              <Box gridColumn={{ base: 'span 1', md: 'span 4' }}>
+                <FormControl><FormLabel>Stock minimo</FormLabel><Input name="minStock" type="number" value={formData.minStock} onChange={handleChange} /></FormControl>
+              </Box>
+              <Box gridColumn={{ base: 'span 1', md: 'span 4' }}>
+                <FormControl><FormLabel>Costo</FormLabel><Input name="costPrice" type="number" value={formData.costPrice} onChange={handleChange} /></FormControl>
+              </Box>
+              <Box gridColumn={{ base: 'span 1', md: 'span 4' }}>
+                <FormControl><FormLabel>Precio venta</FormLabel><Input name="salePrice" type="number" value={formData.salePrice} onChange={handleChange} /></FormControl>
+              </Box>
+              <Box gridColumn={{ base: 'span 1', md: 'span 4' }}>
+                <FormControl><FormLabel>Afecta IGV 18%</FormLabel><Select name="affectsTax" value={taxFlag(formData.affectsTax)} onChange={handleChange}><option value={1}>Si</option><option value={0}>No</option></Select></FormControl>
+              </Box>
+              <Box gridColumn={{ base: 'span 1', md: 'span 4' }}>
+                <FormControl><FormLabel>Estado</FormLabel><Select name="estado" value={formData.estado} onChange={handleChange}><option value={1}>Activo</option><option value={0}>Inactivo</option></Select></FormControl>
+              </Box>
+              <Box gridColumn={{ base: 'span 1', md: 'span 12' }}>
+                <FormControl><FormLabel>Descripcion</FormLabel><Textarea name="description" value={formData.description || ''} onChange={handleChange} /></FormControl>
+              </Box>
+              <Box gridColumn={{ base: 'span 1', md: 'span 12' }}>
+                <FormControl>
+                  <FormLabel>Foto del producto</FormLabel>
+                  <Flex gap={4} align={{ base: 'stretch', md: 'center' }} direction={{ base: 'column', md: 'row' }}>
+                    {formData.imageUrl ? (
+                      <Image src={formData.imageUrl} alt="Foto del producto" boxSize="112px" objectFit="cover" borderRadius="md" borderWidth="1px" bg="gray.50" />
+                    ) : (
+                      <Flex boxSize="112px" align="center" justify="center" borderWidth="1px" borderRadius="md" bg="gray.50">
+                        <Text color="gray.500" fontSize="sm">Sin foto</Text>
+                      </Flex>
+                    )}
+                    <VStack align="stretch" spacing={3} flex="1">
+                      <Input type="file" accept="image/*" onChange={uploadProductImage} />
+                      <Input name="imageUrl" value={formData.imageUrl || ''} onChange={handleChange} placeholder="O pega una URL de imagen" />
+                      <Button type="button" variant="outline" alignSelf={{ base: 'stretch', sm: 'flex-start' }} onClick={() => setFormData((prev) => ({ ...prev, imageUrl: '' }))}>
+                        Quitar foto
+                      </Button>
+                    </VStack>
+                  </Flex>
+                </FormControl>
+              </Box>
+            </SimpleGrid>
             <Box borderWidth="1px" borderRadius="md" p={4}>
               <Flex justify="space-between" align="center" mb={3}>
                 <Heading size="sm">Caracteristicas</Heading>
@@ -609,12 +970,6 @@ export function ProductForm() {
                 </ModalFooter>
               </ModalContent>
             </Modal>
-            <FormControl><FormLabel>Proveedor</FormLabel><Select name="supplierId" value={formData.supplierId || ''} onChange={handleChange}><option value="">Sin proveedor</option>{suppliers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></FormControl>
-            <FormControl><FormLabel>Unidad</FormLabel><Input name="unit" value={formData.unit} onChange={handleChange} /></FormControl>
-            <Flex gap={4} direction={{ base: 'column', md: 'row' }}><FormControl><FormLabel>Stock minimo</FormLabel><Input name="minStock" type="number" value={formData.minStock} onChange={handleChange} /></FormControl><FormControl><FormLabel>Costo</FormLabel><Input name="costPrice" type="number" value={formData.costPrice} onChange={handleChange} /></FormControl><FormControl><FormLabel>Precio venta</FormLabel><Input name="salePrice" type="number" value={formData.salePrice} onChange={handleChange} /></FormControl></Flex>
-            <FormControl><FormLabel>Afecta IGV 18%</FormLabel><Select name="affectsTax" value={taxFlag(formData.affectsTax)} onChange={handleChange}><option value={1}>Si</option><option value={0}>No</option></Select></FormControl>
-            <FormControl><FormLabel>Descripcion</FormLabel><Textarea name="description" value={formData.description || ''} onChange={handleChange} /></FormControl>
-            <FormControl><FormLabel>Estado</FormLabel><Select name="estado" value={formData.estado} onChange={handleChange}><option value={1}>Activo</option><option value={0}>Inactivo</option></Select></FormControl>
           </>
         )
       }}
@@ -2196,5 +2551,359 @@ export function KardexList() {
         error={error}
       />
     </Box>
+  )
+}
+
+export function InventoryReportsHome() {
+  const suggestedReports = [
+    { id: 'stock-valuation', href: '/inventory/reports/stock-valuation', name: 'Valorizacion de inventario', description: 'Costo estimado del stock por tienda, almacen, producto y familia.' },
+    { id: 'low-stock', href: '/inventory/reports/low-stock', name: 'Stock minimo y reposicion', description: 'Productos bajo minimo, sugerencia de compra y proveedor asociado.' },
+    { id: 'rotation', href: '/inventory/reports/rotation', name: 'Rotacion de inventario', description: 'Productos con mayor y menor salida para detectar sobrestock o quiebres.' },
+    { id: 'aging', href: '/inventory/reports/aging', name: 'Antiguedad de inventario', description: 'Existencias sin movimiento por rango de dias.' },
+    { id: 'transfers', href: '/inventory/reports/transfers', name: 'Traslados entre almacenes', description: 'Seguimiento de movimientos internos por origen, destino y responsable.' },
+    { id: 'margin', href: '/inventory/reports/margin', name: 'Margen por producto', description: 'Comparacion de costo, precio de venta y utilidad bruta.' },
+  ]
+
+  return (
+    <Box>
+      <PageHeader title="Reportes" />
+      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} mb={6}>
+        <Box as="a" href="/inventory/reports/sales" bg="white" borderWidth="1px" borderRadius="md" p={4} boxShadow="sm" _hover={{ borderColor: 'blue.400' }}>
+          <Heading size="sm">Ventas</Heading>
+          <Text fontSize="sm" color="gray.600" mt={2}>Totales, ticket promedio, clientes y vendedores.</Text>
+        </Box>
+        <Box as="a" href="/inventory/reports/purchases" bg="white" borderWidth="1px" borderRadius="md" p={4} boxShadow="sm" _hover={{ borderColor: 'blue.400' }}>
+          <Heading size="sm">Compras</Heading>
+          <Text fontSize="sm" color="gray.600" mt={2}>Compras por proveedor, ubicacion y periodo.</Text>
+        </Box>
+        <Box as="a" href="/inventory/reports/kardex" bg="white" borderWidth="1px" borderRadius="md" p={4} boxShadow="sm" _hover={{ borderColor: 'blue.400' }}>
+          <Heading size="sm">Kardex</Heading>
+          <Text fontSize="sm" color="gray.600" mt={2}>Entradas, salidas y ajustes por existencia.</Text>
+        </Box>
+      </SimpleGrid>
+
+      <Heading size="md" mb={3}>Reportes sugeridos para inventarios</Heading>
+      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
+        {suggestedReports.map((report) => (
+          <Box key={report.id} as="a" href={report.href} bg="white" borderWidth="1px" borderRadius="md" p={4} _hover={{ borderColor: 'blue.400' }}>
+            <Text fontWeight="semibold">{report.name}</Text>
+            <Text fontSize="sm" color="gray.600" mt={1}>{report.description}</Text>
+          </Box>
+        ))}
+      </SimpleGrid>
+    </Box>
+  )
+}
+
+export function SalesReport() {
+  const { rows, loading, error } = useList('/inventory/sales')
+  const [filters, setFilters] = useState({ from: '', to: '', location: '' })
+  const filteredRows = useMemo(() => filterByDateRange(rows, 'saleDate', filters), [rows, filters])
+  const total = filteredRows.reduce((sum, row) => sum + Number(row.total || 0), 0)
+  const closedRows = filteredRows.filter((row) => row.status !== 'preventa')
+  const topCustomers = topByAmount(filteredRows, 'customerName')
+  const topSellers = topByAmount(filteredRows, 'sellerName')
+  const columns = [
+    { key: 'saleDate', label: 'Fecha', render: (row) => rowDate(row, 'saleDate') },
+    { key: 'documentNumber', label: 'Documento', render: (row) => row.documentNumber || '-' },
+    { key: 'saleDocumentNumber', label: 'Comprobante', render: (row) => row.saleDocumentNumber || '-' },
+    { key: 'customerName', label: 'Cliente', render: (row) => row.customerName || '-' },
+    { key: 'sellerName', label: 'Vendedor', render: (row) => row.sellerName || '-' },
+    { key: 'locationName', label: 'Ubicacion', render: (row) => row.locationName || '-' },
+    { key: 'status', label: 'Estado', render: (row) => row.status === 'preventa' ? 'Preventa' : 'Cerrada' },
+    { key: 'total', label: 'Total', render: (row) => `S/ ${formatMoney(row.total)}` },
+  ]
+
+  return (
+    <ReportShell title="Reporte de Ventas">
+      <ReportFilters filters={filters} setFilters={setFilters} locations={reportLocations(rows)} />
+      <SimpleGrid columns={{ base: 1, md: 4 }} spacing={4} mb={4}>
+        <SummaryTile label="Ventas" value={filteredRows.length} hint={`${closedRows.length} cerradas`} />
+        <SummaryTile label="Total vendido" value={`S/ ${formatMoney(total)}`} />
+        <SummaryTile label="Ticket promedio" value={`S/ ${formatMoney(filteredRows.length ? total / filteredRows.length : 0)}`} />
+        <SummaryTile label="Preventas" value={filteredRows.length - closedRows.length} />
+      </SimpleGrid>
+      <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={4} mb={4}>
+        <Box>
+          <Heading size="sm" mb={3}>Top clientes</Heading>
+          <DataTable columns={[{ key: 'name', label: 'Cliente' }, { key: 'total', label: 'Total', render: (row) => `S/ ${formatMoney(row.total)}` }]} rows={topCustomers} loading={false} error={null} searchable={false} />
+        </Box>
+        <Box>
+          <Heading size="sm" mb={3}>Top vendedores</Heading>
+          <DataTable columns={[{ key: 'name', label: 'Vendedor' }, { key: 'total', label: 'Total', render: (row) => `S/ ${formatMoney(row.total)}` }]} rows={topSellers} loading={false} error={null} searchable={false} />
+        </Box>
+      </SimpleGrid>
+      <ReportDataTable filename="reporte-ventas" columns={columns} rows={filteredRows} loading={loading} error={error} />
+    </ReportShell>
+  )
+}
+
+export function PurchasesReport() {
+  const { rows, loading, error } = useList('/inventory/purchases')
+  const [filters, setFilters] = useState({ from: '', to: '', location: '' })
+  const filteredRows = useMemo(() => filterByDateRange(rows, 'purchaseDate', filters), [rows, filters])
+  const total = filteredRows.reduce((sum, row) => sum + Number(row.total || 0), 0)
+  const topSuppliers = topByAmount(filteredRows, 'supplierName')
+  const columns = [
+    { key: 'purchaseDate', label: 'Fecha', render: (row) => rowDate(row, 'purchaseDate') },
+    { key: 'documentNumber', label: 'Documento', render: (row) => row.documentNumber || '-' },
+    { key: 'supplierName', label: 'Proveedor', render: (row) => row.supplierName || '-' },
+    { key: 'locationName', label: 'Ubicacion', render: (row) => row.locationName || '-' },
+    { key: 'shelfName', label: 'Estante', render: (row) => row.shelfName || '-' },
+    { key: 'total', label: 'Total', render: (row) => `S/ ${formatMoney(row.total)}` },
+  ]
+
+  return (
+    <ReportShell title="Reporte de Compras">
+      <ReportFilters filters={filters} setFilters={setFilters} locations={reportLocations(rows)} />
+      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} mb={4}>
+        <SummaryTile label="Compras" value={filteredRows.length} />
+        <SummaryTile label="Total comprado" value={`S/ ${formatMoney(total)}`} />
+        <SummaryTile label="Compra promedio" value={`S/ ${formatMoney(filteredRows.length ? total / filteredRows.length : 0)}`} />
+      </SimpleGrid>
+      <Box mb={4}>
+        <Heading size="sm" mb={3}>Top proveedores</Heading>
+        <DataTable columns={[{ key: 'name', label: 'Proveedor' }, { key: 'total', label: 'Total', render: (row) => `S/ ${formatMoney(row.total)}` }]} rows={topSuppliers} loading={false} error={null} searchable={false} />
+      </Box>
+      <ReportDataTable filename="reporte-compras" columns={columns} rows={filteredRows} loading={loading} error={error} />
+    </ReportShell>
+  )
+}
+
+export function KardexReport() {
+  const { rows, loading, error } = useList('/inventory/kardex')
+  const [filters, setFilters] = useState({ from: '', to: '', location: '' })
+  const filteredRows = useMemo(() => filterByDateRange(rows, 'createdAt', filters), [rows, filters])
+  const entries = filteredRows.filter((row) => row.movementType === 'entrada').reduce((sum, row) => sum + Number(row.quantity || 0), 0)
+  const exits = filteredRows.filter((row) => row.movementType === 'salida').reduce((sum, row) => sum + Number(row.quantity || 0), 0)
+  const adjustments = filteredRows.filter((row) => row.movementType === 'ajuste').reduce((sum, row) => sum + Number(row.quantity || 0), 0)
+  const columns = [
+    { key: 'createdAt', label: 'Fecha', render: movementDate },
+    { key: 'movementType', label: 'Movimiento', render: (row) => row.movementType === 'entrada' ? 'Entrada' : row.movementType === 'salida' ? 'Salida' : 'Ajuste' },
+    { key: 'sourceType', label: 'Origen doc.', render: (row) => row.sourceType || '-' },
+    { key: 'variantSku', label: 'SKU', render: (row) => row.variantSku || row.sku },
+    { key: 'variantName', label: 'Existencia', render: stockLabel },
+    { key: 'locationName', label: 'Ubicacion' },
+    { key: 'shelfName', label: 'Estante', render: (row) => row.shelfName || '-' },
+    { key: 'quantity', label: 'Cantidad', render: (row) => row.movementType === 'salida' ? Number(row.quantity) * -1 : row.quantity },
+    { key: 'notes', label: 'Notas', render: (row) => row.notes || '-' },
+  ]
+
+  return (
+    <ReportShell title="Reporte Kardex">
+      <ReportFilters filters={filters} setFilters={setFilters} locations={reportLocations(rows)} />
+      <SimpleGrid columns={{ base: 1, md: 4 }} spacing={4} mb={4}>
+        <SummaryTile label="Movimientos" value={filteredRows.length} />
+        <SummaryTile label="Entradas" value={entries} />
+        <SummaryTile label="Salidas" value={exits} />
+        <SummaryTile label="Ajustes" value={adjustments} />
+      </SimpleGrid>
+      <ReportDataTable filename="reporte-kardex" columns={columns} rows={filteredRows} loading={loading} error={error} />
+    </ReportShell>
+  )
+}
+
+export function StockValuationReport() {
+  const { rows, loading, error } = useList('/inventory/stock')
+  const [location, setLocation] = useState('')
+  const filteredRows = useMemo(() => rows.filter((row) => !location || row.locationName === location), [rows, location])
+  const reportRows = filteredRows.map((row) => ({
+    ...row,
+    stockValue: Number(row.quantity || 0) * Number(row.costPrice || 0),
+  }))
+  const totalUnits = reportRows.reduce((sum, row) => sum + Number(row.quantity || 0), 0)
+  const totalValue = reportRows.reduce((sum, row) => sum + Number(row.stockValue || 0), 0)
+  const columns = [
+    { key: 'variantSku', label: 'SKU', render: (row) => row.variantSku || row.sku },
+    { key: 'variantName', label: 'Existencia', render: stockLabel },
+    { key: 'productType', label: 'Tipo' },
+    { key: 'locationName', label: 'Ubicacion' },
+    { key: 'shelfName', label: 'Estante', render: (row) => row.shelfName || '-' },
+    { key: 'quantity', label: 'Cantidad' },
+    { key: 'costPrice', label: 'Costo unit.', render: (row) => `S/ ${formatMoney(row.costPrice)}` },
+    { key: 'stockValue', label: 'Valor stock', render: (row) => `S/ ${formatMoney(row.stockValue)}` },
+  ]
+
+  return (
+    <ReportShell title="Valorizacion de Inventario">
+      <LocationReportFilter location={location} setLocation={setLocation} locations={reportLocations(rows)} />
+      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} mb={4}>
+        <SummaryTile label="Existencias" value={reportRows.length} />
+        <SummaryTile label="Unidades" value={totalUnits} />
+        <SummaryTile label="Valor inventario" value={`S/ ${formatMoney(totalValue)}`} />
+      </SimpleGrid>
+      <ReportDataTable filename="reporte-valorizacion-inventario" columns={columns} rows={reportRows} loading={loading} error={error} />
+    </ReportShell>
+  )
+}
+
+export function StockReplenishmentReport() {
+  const { rows, loading, error } = useList('/inventory/stock')
+  const [location, setLocation] = useState('')
+  const filteredRows = useMemo(() => rows.filter((row) => !location || row.locationName === location), [rows, location])
+  const reportRows = filteredRows
+    .map((row) => ({
+      ...row,
+      suggestedPurchase: Math.max(0, Number(row.minStock || 0) - Number(row.quantity || 0)),
+    }))
+    .filter((row) => Number(row.minStock || 0) > 0 && Number(row.quantity || 0) <= Number(row.minStock || 0))
+    .sort((a, b) => b.suggestedPurchase - a.suggestedPurchase)
+  const columns = [
+    { key: 'variantSku', label: 'SKU', render: (row) => row.variantSku || row.sku },
+    { key: 'variantName', label: 'Existencia', render: stockLabel },
+    { key: 'supplierName', label: 'Proveedor', render: (row) => row.supplierName || '-' },
+    { key: 'locationName', label: 'Ubicacion' },
+    { key: 'quantity', label: 'Stock actual' },
+    { key: 'minStock', label: 'Stock minimo' },
+    { key: 'suggestedPurchase', label: 'Sugerido comprar' },
+    { key: 'costPrice', label: 'Costo unit.', render: (row) => `S/ ${formatMoney(row.costPrice)}` },
+  ]
+
+  return (
+    <ReportShell title="Stock Minimo y Reposicion">
+      <LocationReportFilter location={location} setLocation={setLocation} locations={reportLocations(rows)} />
+      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} mb={4}>
+        <SummaryTile label="Items bajo minimo" value={reportRows.length} />
+        <SummaryTile label="Unidades sugeridas" value={reportRows.reduce((sum, row) => sum + Number(row.suggestedPurchase || 0), 0)} />
+        <SummaryTile label="Costo estimado" value={`S/ ${formatMoney(reportRows.reduce((sum, row) => sum + Number(row.suggestedPurchase || 0) * Number(row.costPrice || 0), 0))}`} />
+      </SimpleGrid>
+      <ReportDataTable filename="reporte-stock-minimo-reposicion" columns={columns} rows={reportRows} loading={loading} error={error} />
+    </ReportShell>
+  )
+}
+
+export function RotationReport() {
+  const { rows, loading, error } = useList('/inventory/kardex')
+  const [filters, setFilters] = useState({ from: '', to: '', location: '' })
+  const filteredMovements = useMemo(() => filterByDateRange(rows, 'createdAt', filters), [rows, filters])
+  const reportRows = useMemo(() => buildRotationRows(filteredMovements), [filteredMovements])
+  const columns = [
+    { key: 'sku', label: 'SKU' },
+    { key: 'item', label: 'Existencia' },
+    { key: 'locationName', label: 'Ubicacion' },
+    { key: 'entries', label: 'Entradas' },
+    { key: 'exits', label: 'Salidas' },
+    { key: 'adjustments', label: 'Ajustes' },
+    { key: 'net', label: 'Neto', render: (row) => Number(row.entries || 0) - Number(row.exits || 0) + Number(row.adjustments || 0) },
+    { key: 'lastMovement', label: 'Ultimo movimiento', render: (row) => String(row.lastMovement || '').replace('T', ' ').slice(0, 19) },
+  ]
+
+  return (
+    <ReportShell title="Rotacion de Inventario">
+      <ReportFilters filters={filters} setFilters={setFilters} locations={reportLocations(rows)} />
+      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} mb={4}>
+        <SummaryTile label="Existencias con movimiento" value={reportRows.length} />
+        <SummaryTile label="Entradas" value={reportRows.reduce((sum, row) => sum + Number(row.entries || 0), 0)} />
+        <SummaryTile label="Salidas" value={reportRows.reduce((sum, row) => sum + Number(row.exits || 0), 0)} />
+      </SimpleGrid>
+      <ReportDataTable filename="reporte-rotacion-inventario" columns={columns} rows={reportRows} loading={loading} error={error} />
+    </ReportShell>
+  )
+}
+
+export function InventoryAgingReport() {
+  const stock = useList('/inventory/stock')
+  const kardex = useList('/inventory/kardex')
+  const [location, setLocation] = useState('')
+  const reportRows = useMemo(() => {
+    const filteredStock = stock.rows.filter((row) => !location || row.locationName === location)
+    return buildAgingRows(filteredStock, kardex.rows)
+  }, [stock.rows, kardex.rows, location])
+  const stagnantRows = reportRows.filter((row) => row.daysWithoutMovement === null || row.daysWithoutMovement >= 30)
+  const columns = [
+    { key: 'variantSku', label: 'SKU', render: (row) => row.variantSku || row.sku },
+    { key: 'variantName', label: 'Existencia', render: stockLabel },
+    { key: 'locationName', label: 'Ubicacion' },
+    { key: 'shelfName', label: 'Estante', render: (row) => row.shelfName || '-' },
+    { key: 'quantity', label: 'Stock actual' },
+    { key: 'lastMovement', label: 'Ultimo movimiento', render: (row) => row.lastMovement ? String(row.lastMovement).replace('T', ' ').slice(0, 19) : 'Sin movimiento' },
+    { key: 'daysWithoutMovement', label: 'Dias sin movimiento', render: (row) => row.daysWithoutMovement ?? 'Sin historial' },
+  ]
+
+  return (
+    <ReportShell title="Antiguedad de Inventario">
+      <LocationReportFilter location={location} setLocation={setLocation} locations={reportLocations(stock.rows)} />
+      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} mb={4}>
+        <SummaryTile label="Existencias" value={reportRows.length} />
+        <SummaryTile label="Sin movimiento 30+ dias" value={stagnantRows.length} />
+        <SummaryTile label="Unidades en observacion" value={stagnantRows.reduce((sum, row) => sum + Number(row.quantity || 0), 0)} />
+      </SimpleGrid>
+      <ReportDataTable filename="reporte-antiguedad-inventario" columns={columns} rows={reportRows} loading={stock.loading || kardex.loading} error={stock.error || kardex.error} />
+    </ReportShell>
+  )
+}
+
+export function StockTransfersReport() {
+  const { rows, loading, error } = useList('/inventory/transfers')
+  const [filters, setFilters] = useState({ from: '', to: '', location: '' })
+  const locations = [...new Set(rows.flatMap((row) => [row.sourceLocationName, row.targetLocationName]).filter(Boolean))].sort()
+  const reportRows = rows.filter((row) => {
+    const date = rowDate(row, 'transferDate')
+    if (filters.from && date < filters.from) return false
+    if (filters.to && date > filters.to) return false
+    if (filters.location && row.sourceLocationName !== filters.location && row.targetLocationName !== filters.location) return false
+    return true
+  })
+  const columns = [
+    { key: 'transferDate', label: 'Fecha', render: (row) => rowDate(row, 'transferDate') },
+    { key: 'documentNumber', label: 'Documento', render: (row) => row.documentNumber || '-' },
+    { key: 'sourceLocationName', label: 'Origen' },
+    { key: 'sourceShelfName', label: 'Estante origen', render: (row) => row.sourceShelfName || '-' },
+    { key: 'targetLocationName', label: 'Destino' },
+    { key: 'targetShelfName', label: 'Estante destino', render: (row) => row.targetShelfName || '-' },
+    { key: 'notes', label: 'Notas', render: (row) => row.notes || '-' },
+  ]
+
+  return (
+    <ReportShell title="Traslados entre Almacenes">
+      <ReportFilters filters={filters} setFilters={setFilters} locations={locations} />
+      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} mb={4}>
+        <SummaryTile label="Traslados" value={reportRows.length} />
+        <SummaryTile label="Ubicaciones involucradas" value={locations.length} />
+        <SummaryTile label="Con documento" value={reportRows.filter((row) => row.documentNumber).length} />
+      </SimpleGrid>
+      <ReportDataTable filename="reporte-traslados-almacenes" columns={columns} rows={reportRows} loading={loading} error={error} />
+    </ReportShell>
+  )
+}
+
+export function InventoryMarginReport() {
+  const { rows, loading, error } = useList('/inventory/stock')
+  const [location, setLocation] = useState('')
+  const reportRows = rows
+    .filter((row) => !location || row.locationName === location)
+    .map((row) => {
+      const unitMargin = Number(row.salePrice || 0) - Number(row.costPrice || 0)
+      const marginPercent = Number(row.salePrice || 0) ? (unitMargin / Number(row.salePrice || 0)) * 100 : 0
+      return {
+        ...row,
+        unitMargin,
+        marginPercent,
+        potentialMargin: unitMargin * Number(row.quantity || 0),
+      }
+    })
+    .sort((a, b) => b.potentialMargin - a.potentialMargin)
+  const columns = [
+    { key: 'variantSku', label: 'SKU', render: (row) => row.variantSku || row.sku },
+    { key: 'variantName', label: 'Existencia', render: stockLabel },
+    { key: 'locationName', label: 'Ubicacion' },
+    { key: 'quantity', label: 'Stock actual' },
+    { key: 'costPrice', label: 'Costo', render: (row) => `S/ ${formatMoney(row.costPrice)}` },
+    { key: 'salePrice', label: 'Precio venta', render: (row) => `S/ ${formatMoney(row.salePrice)}` },
+    { key: 'unitMargin', label: 'Margen unit.', render: (row) => `S/ ${formatMoney(row.unitMargin)}` },
+    { key: 'marginPercent', label: 'Margen %', render: (row) => `${formatMoney(row.marginPercent)}%` },
+    { key: 'potentialMargin', label: 'Margen potencial', render: (row) => `S/ ${formatMoney(row.potentialMargin)}` },
+  ]
+
+  return (
+    <ReportShell title="Margen por Producto">
+      <LocationReportFilter location={location} setLocation={setLocation} locations={reportLocations(rows)} />
+      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} mb={4}>
+        <SummaryTile label="Existencias" value={reportRows.length} />
+        <SummaryTile label="Margen potencial" value={`S/ ${formatMoney(reportRows.reduce((sum, row) => sum + Number(row.potentialMargin || 0), 0))}`} />
+        <SummaryTile label="Margen promedio" value={`${formatMoney(reportRows.length ? reportRows.reduce((sum, row) => sum + Number(row.marginPercent || 0), 0) / reportRows.length : 0)}%`} />
+      </SimpleGrid>
+      <ReportDataTable filename="reporte-margen-producto" columns={columns} rows={reportRows} loading={loading} error={error} />
+    </ReportShell>
   )
 }
