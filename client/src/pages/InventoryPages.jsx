@@ -1510,7 +1510,8 @@ export function TransferList() {
 }
 
 export function TransferForm() {
-  const { locations, shelves, sellableItems } = useOptions()
+  const { locations, shelves } = useOptions()
+  const stock = useList('/inventory/stock')
   const [formData, setFormData] = useState({
     sourceLocationId: '',
     sourceShelfId: '',
@@ -1532,13 +1533,22 @@ export function TransferForm() {
   const sourceShelves = useMemo(() => shelves.filter((item) => String(item.locationId) === String(formData.sourceLocationId)), [shelves, formData.sourceLocationId])
   const targetShelves = useMemo(() => shelves.filter((item) => String(item.locationId) === String(formData.targetLocationId)), [shelves, formData.targetLocationId])
 
-  const filteredProducts = sellableItems.filter((product) => {
-    if (isServiceItem(product)) return false
-    const text = `${product.variantSku || product.productSku || ''} ${productLabel(product)}`.toLowerCase()
+  const filteredProducts = stock.rows.filter((product) => {
+    const shelfMatches = formData.sourceShelfId
+      ? String(product.shelfId || '') === String(formData.sourceShelfId)
+      : !product.shelfId
+    if (String(product.locationId) !== String(formData.sourceLocationId)) return false
+    if (!shelfMatches) return false
+    if (Number(product.quantity || 0) <= 0) return false
+    const text = `${product.variantSku || product.sku || ''} ${product.variantName || product.productName || ''}`.toLowerCase()
     return text.includes(productSearch.toLowerCase())
   }).slice(0, 12)
 
   const openProductModal = () => {
+    if (!formData.sourceLocationId) {
+      toast({ title: 'Selecciona el almacen origen', status: 'warning', duration: 2500, isClosable: true })
+      return
+    }
     setProductSearch('')
     setSelectedProduct(null)
     setDetailDraft({ quantity: 1 })
@@ -1546,12 +1556,12 @@ export function TransferForm() {
   }
 
   const chooseProduct = (product) => {
-    if (!isServiceItem(product) && Number(product.stock || 0) <= 0) {
+    if (Number(product.quantity || 0) <= 0) {
       toast({ title: 'Producto sin stock', description: 'No se puede seleccionar un producto con 0 existencias', status: 'warning', duration: 3000, isClosable: true })
       return
     }
     setSelectedProduct(product)
-    setProductSearch(productLabel(product))
+    setProductSearch(product.variantName || product.productName || '')
     setDetailDraft({ quantity: 1 })
   }
 
@@ -1560,8 +1570,12 @@ export function TransferForm() {
       toast({ title: 'Selecciona una existencia', status: 'warning', duration: 2500, isClosable: true })
       return
     }
-    if (!isServiceItem(selectedProduct) && Number(selectedProduct.stock || 0) <= 0) {
+    if (Number(selectedProduct.quantity || 0) <= 0) {
       toast({ title: 'Producto sin stock', description: 'No se puede agregar un producto con 0 existencias', status: 'warning', duration: 3000, isClosable: true })
+      return
+    }
+    if (Number(detailDraft.quantity || 0) > Number(selectedProduct.quantity || 0)) {
+      toast({ title: 'Stock insuficiente', description: 'La cantidad no puede superar el stock del origen seleccionado', status: 'warning', duration: 3000, isClosable: true })
       return
     }
     setFormData((prev) => ({
@@ -1569,9 +1583,9 @@ export function TransferForm() {
       details: [...prev.details, {
         productId: selectedProduct.productId,
         variantId: selectedProduct.variantId,
-        productDescription: productLabel(selectedProduct),
-        variantSku: selectedProduct.variantSku,
-        stock: selectedProduct.stock,
+        productDescription: selectedProduct.variantName || selectedProduct.productName,
+        variantSku: selectedProduct.variantSku || selectedProduct.sku,
+        stock: selectedProduct.quantity,
         quantity: Number(detailDraft.quantity || 0),
       }],
     }))
@@ -1604,8 +1618,8 @@ export function TransferForm() {
   return (
     <FormShell title="Registrar Traslado" backTo="/inventory/transfers" onSubmit={submit} saving={saving}>
       <Flex gap={4} direction={{ base: 'column', md: 'row' }}>
-        <FormControl isRequired><FormLabel>Almacen origen</FormLabel><Select value={formData.sourceLocationId} onChange={(e) => setFormData({ ...formData, sourceLocationId: e.target.value, sourceShelfId: '' })}><option value="">Selecciona</option>{locations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></FormControl>
-        <FormControl><FormLabel>Estante origen</FormLabel><Select value={formData.sourceShelfId} onChange={(e) => setFormData({ ...formData, sourceShelfId: e.target.value })}><option value="">Sin estante</option>{sourceShelves.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></FormControl>
+        <FormControl isRequired><FormLabel>Almacen origen</FormLabel><Select value={formData.sourceLocationId} onChange={(e) => setFormData({ ...formData, sourceLocationId: e.target.value, sourceShelfId: '', details: [] })}><option value="">Selecciona</option>{locations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></FormControl>
+        <FormControl><FormLabel>Estante origen</FormLabel><Select value={formData.sourceShelfId} onChange={(e) => setFormData({ ...formData, sourceShelfId: e.target.value, details: [] })}><option value="">Sin estante</option>{sourceShelves.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></FormControl>
       </Flex>
       <Flex gap={4} direction={{ base: 'column', md: 'row' }}>
         <FormControl isRequired><FormLabel>Tienda destino</FormLabel><Select value={formData.targetLocationId} onChange={(e) => setFormData({ ...formData, targetLocationId: e.target.value, targetShelfId: '' })}><option value="">Selecciona</option>{locations.filter((item) => item.type === 'tienda').map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></FormControl>
@@ -1643,16 +1657,19 @@ export function TransferForm() {
               {productSearch && (
                 <Box borderWidth="1px" borderRadius="md" maxH="220px" overflowY="auto">
                   {filteredProducts.map((product) => (
-                    <Box key={`${product.productId}-${product.variantId || 'base'}`} p={3} cursor={Number(product.stock || 0) <= 0 ? 'not-allowed' : 'pointer'} opacity={Number(product.stock || 0) <= 0 ? 0.65 : 1} _hover={{ bg: Number(product.stock || 0) <= 0 ? 'red.50' : 'gray.50' }} onClick={() => chooseProduct(product)}>
-                      <Text fontWeight="semibold">{productLabel(product)}</Text>
-                      <Text fontSize="sm" color={Number(product.stock || 0) <= 0 ? 'red.600' : 'gray.700'}>SKU: {product.variantSku} | Stock: {product.stock} | Unidad: {product.unit || 'unidad'}</Text>
+                    <Box key={`${product.id}`} p={3} cursor="pointer" _hover={{ bg: 'gray.50' }} onClick={() => chooseProduct(product)}>
+                      <Text fontWeight="semibold">{product.variantName || product.productName}</Text>
+                      <Text fontSize="sm" color="gray.700">SKU: {product.variantSku || product.sku} | Stock origen: {product.quantity} | Unidad: {product.unit || 'unidad'}</Text>
                     </Box>
                   ))}
+                  {!filteredProducts.length && !stock.loading && (
+                    <Text p={3} color="gray.500">Sin existencias en el origen seleccionado</Text>
+                  )}
                 </Box>
               )}
               <Flex gap={4} direction={{ base: 'column', md: 'row' }}>
                 <FormControl><FormLabel>Cantidad</FormLabel><Input type="number" value={detailDraft.quantity} onChange={(e) => setDetailDraft({ ...detailDraft, quantity: e.target.value })} /></FormControl>
-                <FormControl><FormLabel>Stock actual</FormLabel><Input value={selectedProduct?.stock ?? 0} isReadOnly /></FormControl>
+                <FormControl><FormLabel>Stock origen</FormLabel><Input value={selectedProduct?.quantity ?? 0} isReadOnly /></FormControl>
               </Flex>
             </VStack>
           </ModalBody>
