@@ -51,7 +51,7 @@ router.post('/product-image', requireRoles(), express.raw({ type: 'image/*', lim
     fs.writeFileSync(filepath, buffer);
 
     const baseUrl = `${req.protocol}://${req.get('host')}`;
-    res.status(201).json({ url: `${baseUrl}/uploads/products/${filename}` });
+    res.status(201).json({ url: `${baseUrl}/api/uploads/products/${filename}` });
   } catch (err) {
     next(err);
   }
