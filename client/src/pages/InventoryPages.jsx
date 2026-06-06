@@ -113,14 +113,17 @@ function productTypeLabel(value) {
   return productTypeOptions.find((item) => item.value === value)?.label || value || '-'
 }
 
-function isServiceItem(item) {
-  return String(item?.type || item?.productType || '').toLowerCase() === 'servicio'
+function detailText(row) {
+  return (
+    <Box>
+      <Text>{row.productDescription || row.variantName || '-'}</Text>
+      {row.detailNotes ? <Text fontSize="sm" color="gray.600" whiteSpace="pre-wrap">{row.detailNotes}</Text> : null}
+    </Box>
+  )
 }
 
-function detailDescription(label, note) {
-  const cleanLabel = String(label || '').trim()
-  const cleanNote = String(note || '').trim()
-  return cleanNote ? `${cleanLabel}\n${cleanNote}`.slice(0, 500) : cleanLabel
+function isServiceItem(item) {
+  return String(item?.type || item?.productType || '').toLowerCase() === 'servicio'
 }
 
 function parseAttributes(value) {
@@ -1302,7 +1305,8 @@ function MovementForm({ type }) {
       details: [...prev.details, {
         productId: selectedProduct.productId,
         variantId: selectedProduct.variantId,
-        productDescription: detailDescription(productLabel(selectedProduct), detailDraft.note),
+        productDescription: productLabel(selectedProduct),
+        detailNotes: detailDraft.note || '',
         productSku: selectedProduct.productSku,
         variantSku: selectedProduct.variantSku,
         type: selectedProduct.type,
@@ -1322,6 +1326,7 @@ function MovementForm({ type }) {
       productId: item.productId,
       variantId: item.variantId,
       productDescription: item.productDescription,
+      detailNotes: item.detailNotes || '',
       unit: item.unit || 'unidad',
       quantity: Number(item.quantity),
       listPrice: Number(item.price || 0),
@@ -1404,7 +1409,7 @@ function MovementForm({ type }) {
         <DetailTable
           columns={[
             { key: type === 'sale' ? 'productSku' : 'variantSku', label: 'SKU', render: (row) => type === 'sale' ? row.productSku || '-' : row.variantSku || '-' },
-            { key: 'productDescription', label: 'Existencia' },
+            { key: 'productDescription', label: 'Existencia', render: detailText },
             { key: 'quantity', label: 'Cantidad' },
             { key: 'price', label: type === 'purchase' ? 'Costo' : 'Precio' },
             { key: 'subtotal', label: type === 'sale' ? 'Subtotal' : 'Importe', render: (row) => {
@@ -1618,7 +1623,7 @@ export function TransferForm() {
         <DetailTable
           columns={[
             { key: 'variantSku', label: 'SKU', render: (row) => row.variantSku || '-' },
-            { key: 'productDescription', label: 'Existencia' },
+            { key: 'productDescription', label: 'Existencia', render: detailText },
             { key: 'stock', label: 'Stock' },
             { key: 'quantity', label: 'Cantidad' },
           ]}
@@ -1988,7 +1993,7 @@ export function SaleList() {
                   <DetailTable
                     columns={[
                       { key: 'productSku', label: 'SKU', render: (row) => row.productSku || '-' },
-                      { key: 'productDescription', label: 'Producto', render: (row) => row.productDescription || row.variantName || '-' },
+                      { key: 'productDescription', label: 'Producto', render: detailText },
                       { key: 'unit', label: 'Unidad' },
                       { key: 'quantity', label: 'Cantidad' },
                       { key: 'unitPrice', label: 'Precio' },
@@ -2335,6 +2340,7 @@ export function QuotationForm() {
             productId: item.productId,
             variantId: item.variantId,
             productDescription: item.productDescription,
+            detailNotes: item.detailNotes || '',
             unit: item.unit || 'unidad',
             type: item.type,
             quantity: Number(item.quantity || 0),
@@ -2443,7 +2449,8 @@ export function QuotationForm() {
     const detail = {
       productId: selectedProduct.productId,
       variantId: selectedProduct.variantId,
-      productDescription: detailDescription(productLabel(selectedProduct), detailDraft.note),
+      productDescription: productLabel(selectedProduct),
+      detailNotes: detailDraft.note || '',
       unit: selectedProduct.unit || (isServiceItem(selectedProduct) ? 'servicio' : 'unidad'),
       type: selectedProduct.type,
       quantity,
@@ -2508,7 +2515,7 @@ export function QuotationForm() {
             </Flex>
             <DetailTable
               columns={[
-                { key: 'productDescription', label: 'Producto' },
+                { key: 'productDescription', label: 'Producto', render: detailText },
                 { key: 'unit', label: 'Unidad' },
                 { key: 'quantity', label: 'Cantidad' },
                 { key: 'listPrice', label: 'Precio real' },

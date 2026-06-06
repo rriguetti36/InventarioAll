@@ -154,11 +154,17 @@ class QuotationPdfService {
       let y = 338;
       details.forEach((item, index) => {
         y = addPageIfNeeded(doc, y);
-        const lineHeight = Math.max(24, doc.heightOfString(item.productDescription || '-', { width: 200 }) + 12);
+        const detailText = [item.productDescription || '-', item.detailNotes].filter(Boolean).join('\n');
+        const lineHeight = Math.max(24, doc.heightOfString(detailText, { width: 200 }) + 12);
         if (y + lineHeight > 730) y = addPageIfNeeded(doc, 731);
         doc.roundedRect(40, y, 515, lineHeight, 2).fill(index % 2 === 0 ? '#FFFFFF' : '#F8FAFC');
         doc.fillColor('#1A202C').font('Helvetica').fontSize(8);
         doc.text(item.productDescription || '-', 48, y + 7, { width: 200 });
+        if (item.detailNotes) {
+          const noteY = y + 7 + doc.heightOfString(item.productDescription || '-', { width: 200 }) + 3;
+          doc.fillColor('#4A5568').fontSize(7).text(item.detailNotes, 48, noteY, { width: 200 });
+          doc.fillColor('#1A202C').fontSize(8);
+        }
         doc.text(item.unit || 'unidad', 252, y + 7, { width: 45 });
         doc.text(money(item.quantity), 302, y + 7, { width: 45, align: 'right' });
         doc.text(money(item.unitPrice), 352, y + 7, { width: 58, align: 'right' });

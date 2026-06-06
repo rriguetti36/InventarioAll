@@ -286,6 +286,7 @@ BEGIN
     productId INT NOT NULL,
     variantId INT NULL,
     productDescription NVARCHAR(500) NOT NULL,
+    detailNotes NVARCHAR(MAX) NULL,
     unit NVARCHAR(30) NOT NULL DEFAULT 'unidad',
     quantity DECIMAL(18,2) NOT NULL,
     listPrice DECIMAL(18,2) NOT NULL DEFAULT 0,
@@ -302,6 +303,9 @@ END
 GO
 
 IF COL_LENGTH('dbo.QuotationDetails', 'variantId') IS NULL ALTER TABLE dbo.QuotationDetails ADD variantId INT NULL;
+GO
+
+IF COL_LENGTH('dbo.QuotationDetails', 'detailNotes') IS NULL ALTER TABLE dbo.QuotationDetails ADD detailNotes NVARCHAR(MAX) NULL;
 GO
 
 IF OBJECT_ID('dbo.ProductCharacteristicValues', 'U') IS NULL
@@ -523,6 +527,7 @@ BEGIN
     productId INT NOT NULL,
     variantId INT NULL,
     productDescription NVARCHAR(500) NULL,
+    detailNotes NVARCHAR(MAX) NULL,
     unit NVARCHAR(30) NOT NULL DEFAULT 'unidad',
     quantity DECIMAL(18,2) NOT NULL,
     listPrice DECIMAL(18,2) NOT NULL DEFAULT 0,
@@ -582,6 +587,8 @@ IF COL_LENGTH('dbo.SaleDetails', 'variantId') IS NULL ALTER TABLE dbo.SaleDetail
 GO
 
 IF COL_LENGTH('dbo.SaleDetails', 'productDescription') IS NULL ALTER TABLE dbo.SaleDetails ADD productDescription NVARCHAR(500) NULL;
+GO
+IF COL_LENGTH('dbo.SaleDetails', 'detailNotes') IS NULL ALTER TABLE dbo.SaleDetails ADD detailNotes NVARCHAR(MAX) NULL;
 GO
 IF COL_LENGTH('dbo.SaleDetails', 'unit') IS NULL ALTER TABLE dbo.SaleDetails ADD unit NVARCHAR(30) NOT NULL CONSTRAINT DF_SaleDetails_Unit DEFAULT 'unidad';
 GO

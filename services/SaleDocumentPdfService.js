@@ -162,9 +162,16 @@ function buildA4Document({ document, sale, details, company }) {
     let y = 296;
     details.forEach((item) => {
       y = addInvoicePageIfNeeded(doc, y);
-      const lineHeight = Math.max(24, doc.heightOfString(item.productDescription || '-', { width: 218 }) + 10);
+      const detailText = [item.productDescription || '-', item.detailNotes].filter(Boolean).join('\n');
+      const lineHeight = Math.max(24, doc.heightOfString(detailText, { width: 218 }) + 10);
+      if (y + lineHeight > 720) y = addInvoicePageIfNeeded(doc, 721);
       doc.fillColor('#1A202C').font('Helvetica').fontSize(8);
       doc.text(item.productDescription || '-', 48, y + 5, { width: 218 });
+      if (item.detailNotes) {
+        const noteY = y + 5 + doc.heightOfString(item.productDescription || '-', { width: 218 }) + 3;
+        doc.fillColor('#4A5568').fontSize(7).text(item.detailNotes, 48, noteY, { width: 218 });
+        doc.fillColor('#1A202C').fontSize(8);
+      }
       doc.text(item.unit || 'unidad', 270, y + 5, { width: 48 });
       doc.text(money(item.quantity), 322, y + 5, { width: 45, align: 'right' });
       doc.text(money(item.unitPrice), 374, y + 5, { width: 55, align: 'right' });

@@ -716,6 +716,7 @@ class InventoryModel {
           .input('productId', sql.Int, item.productId)
           .input('variantId', sql.Int, nullableInt(item.variantId))
           .input('productDescription', sql.NVarChar(500), item.productDescription)
+          .input('detailNotes', sql.NVarChar(sql.MAX), text(item.detailNotes))
           .input('unit', sql.NVarChar(30), item.unit || 'unidad')
           .input('quantity', sql.Decimal(18, 2), item.quantity)
           .input('listPrice', sql.Decimal(18, 2), item.listPrice)
@@ -727,9 +728,9 @@ class InventoryModel {
           .input('total', sql.Decimal(18, 2), item.total)
           .query(`
             INSERT INTO SaleDetails
-              (saleId, productId, variantId, productDescription, unit, quantity, listPrice, unitPrice, affectsTax, taxRate, subtotal, taxAmount, total)
+              (saleId, productId, variantId, productDescription, detailNotes, unit, quantity, listPrice, unitPrice, affectsTax, taxRate, subtotal, taxAmount, total)
             VALUES
-              (@saleId, @productId, @variantId, @productDescription, @unit, @quantity, @listPrice, @unitPrice, @affectsTax, @taxRate, @subtotal, @taxAmount, @total)
+              (@saleId, @productId, @variantId, @productDescription, @detailNotes, @unit, @quantity, @listPrice, @unitPrice, @affectsTax, @taxRate, @subtotal, @taxAmount, @total)
           `);
       }
 
@@ -797,6 +798,7 @@ class InventoryModel {
           .input('productId', sql.Int, Number(item.productId))
           .input('variantId', sql.Int, nullableInt(item.variantId))
           .input('productDescription', sql.NVarChar(500), item.productDescription)
+          .input('detailNotes', sql.NVarChar(sql.MAX), text(item.detailNotes))
           .input('unit', sql.NVarChar(30), item.unit || 'unidad')
           .input('quantity', sql.Decimal(18, 2), quantity)
           .input('listPrice', sql.Decimal(18, 2), listPrice)
@@ -808,9 +810,9 @@ class InventoryModel {
           .input('total', sql.Decimal(18, 2), line.total)
           .query(`
             INSERT INTO QuotationDetails
-              (quotationId, productId, variantId, productDescription, unit, quantity, listPrice, unitPrice, affectsTax, taxRate, subtotal, taxAmount, total)
+              (quotationId, productId, variantId, productDescription, detailNotes, unit, quantity, listPrice, unitPrice, affectsTax, taxRate, subtotal, taxAmount, total)
             VALUES
-              (@quotationId, @productId, @variantId, @productDescription, @unit, @quantity, @listPrice, @unitPrice, @affectsTax, @taxRate, @subtotal, @taxAmount, @total)
+              (@quotationId, @productId, @variantId, @productDescription, @detailNotes, @unit, @quantity, @listPrice, @unitPrice, @affectsTax, @taxRate, @subtotal, @taxAmount, @total)
           `);
       }
 
@@ -893,6 +895,7 @@ class InventoryModel {
           .input('productId', sql.Int, Number(item.productId))
           .input('variantId', sql.Int, nullableInt(item.variantId))
           .input('productDescription', sql.NVarChar(500), item.productDescription)
+          .input('detailNotes', sql.NVarChar(sql.MAX), text(item.detailNotes))
           .input('unit', sql.NVarChar(30), item.unit || 'unidad')
           .input('quantity', sql.Decimal(18, 2), quantity)
           .input('listPrice', sql.Decimal(18, 2), listPrice)
@@ -904,9 +907,9 @@ class InventoryModel {
           .input('total', sql.Decimal(18, 2), line.total)
           .query(`
             INSERT INTO QuotationDetails
-              (quotationId, productId, variantId, productDescription, unit, quantity, listPrice, unitPrice, affectsTax, taxRate, subtotal, taxAmount, total)
+              (quotationId, productId, variantId, productDescription, detailNotes, unit, quantity, listPrice, unitPrice, affectsTax, taxRate, subtotal, taxAmount, total)
             VALUES
-              (@quotationId, @productId, @variantId, @productDescription, @unit, @quantity, @listPrice, @unitPrice, @affectsTax, @taxRate, @subtotal, @taxAmount, @total)
+              (@quotationId, @productId, @variantId, @productDescription, @detailNotes, @unit, @quantity, @listPrice, @unitPrice, @affectsTax, @taxRate, @subtotal, @taxAmount, @total)
           `);
       }
 
@@ -1423,6 +1426,7 @@ class InventoryModel {
       .input('productId', sql.Int, Number(item.productId))
       .input('variantId', sql.Int, nullableInt(item.variantId))
       .input('productDescription', sql.NVarChar(500), item.productDescription || null)
+      .input('detailNotes', sql.NVarChar(sql.MAX), text(item.detailNotes))
       .input('unit', sql.NVarChar(30), item.unit || 'unidad')
       .input('quantity', sql.Decimal(18, 2), quantity)
       .input('listPrice', sql.Decimal(18, 2), listPrice)
@@ -1434,9 +1438,9 @@ class InventoryModel {
       .input('total', sql.Decimal(18, 2), line.total)
       .query(`
         INSERT INTO SaleDetails
-          (saleId, productId, variantId, productDescription, unit, quantity, listPrice, unitPrice, affectsTax, taxRate, subtotal, taxAmount, total)
+          (saleId, productId, variantId, productDescription, detailNotes, unit, quantity, listPrice, unitPrice, affectsTax, taxRate, subtotal, taxAmount, total)
         VALUES
-          (@saleId, @productId, @variantId, @productDescription, @unit, @quantity, @listPrice, @unitPrice, @affectsTax, @taxRate, @subtotal, @taxAmount, @total)
+          (@saleId, @productId, @variantId, @productDescription, @detailNotes, @unit, @quantity, @listPrice, @unitPrice, @affectsTax, @taxRate, @subtotal, @taxAmount, @total)
       `);
   }
 
