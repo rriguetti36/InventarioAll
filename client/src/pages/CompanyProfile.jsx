@@ -52,6 +52,38 @@ function normalizeRows(rows, fallback) {
   return Array.isArray(rows) && rows.length ? rows : [fallback]
 }
 
+function loadImageFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const image = new window.Image()
+    image.onload = () => {
+      URL.revokeObjectURL(url)
+      resolve(image)
+    }
+    image.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('No se pudo leer la imagen'))
+    }
+    image.src = url
+  })
+}
+
+async function compressLogoDataUrl(file) {
+  const image = await loadImageFromFile(file)
+  const maxSide = 420
+  const scale = Math.min(1, maxSide / Math.max(image.width, image.height))
+  const width = Math.max(1, Math.round(image.width * scale))
+  const height = Math.max(1, Math.round(image.height * scale))
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const context = canvas.getContext('2d')
+  context.fillStyle = '#ffffff'
+  context.fillRect(0, 0, width, height)
+  context.drawImage(image, 0, 0, width, height)
+  return canvas.toDataURL('image/jpeg', 0.78)
+}
+
 export default function CompanyProfile() {
   const [form, setForm] = useState(emptyProfile)
   const [loading, setLoading] = useState(true)
@@ -125,20 +157,26 @@ export default function CompanyProfile() {
     }))
   }
 
-  const handleLogo = (event) => {
+  const handleLogo = async (event) => {
     const file = event.target.files?.[0]
     if (!file) return
     if (!file.type.startsWith('image/')) {
       toast({ status: 'warning', title: 'Selecciona una imagen valida' })
       return
     }
-    if (file.size > 2 * 1024 * 1024) {
-      toast({ status: 'warning', title: 'El logo debe pesar menos de 2 MB' })
+    if (file.size > 8 * 1024 * 1024) {
+      toast({ status: 'warning', title: 'El logo debe pesar menos de 8 MB' })
       return
     }
-    const reader = new FileReader()
-    reader.onload = () => updateField('logoDataUrl', reader.result)
-    reader.readAsDataURL(file)
+    try {
+      const logoDataUrl = await compressLogoDataUrl(file)
+      updateField('logoDataUrl', logoDataUrl)
+      toast({ status: 'success', title: 'Logo optimizado', description: `Listo para guardar (${Math.round(logoDataUrl.length / 1024)} KB).` })
+    } catch (err) {
+      toast({ status: 'error', title: err.message })
+    } finally {
+      event.target.value = ''
+    }
   }
 
   const save = async (event) => {
