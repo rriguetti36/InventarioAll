@@ -1046,7 +1046,7 @@ class InventoryModel {
       .input('id', sql.Int, Number(id))
       .input('locationId', sql.Int, nullableInt(locationId))
       .query(`
-        SELECT sh.*, l.name AS locationName, sf.name AS shelfName, q.quotationNumber, c.name AS customerFullName,
+        SELECT sh.*, l.name AS locationName, sf.name AS shelfName, q.quotationNumber, q.paymentMethod, c.name AS customerFullName,
                c.documentType AS customerDocumentType, c.documentNumber AS customerDocumentNumber,
                c.phone AS customerPhone, c.address AS customerAddress, u.name AS sellerName
         FROM SaleHeaders sh

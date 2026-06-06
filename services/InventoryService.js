@@ -247,7 +247,8 @@ class InventoryService {
 
   static async getSaleDocumentPdf(documentId, user) {
     const documentData = await InventoryModel.getSaleDocument(documentId, scopedLocationId(user));
-    const buffer = await SaleDocumentPdfService.build(documentData);
+    const company = await CompanyProfileService.getProfile();
+    const buffer = await SaleDocumentPdfService.build({ ...documentData, company });
     return {
       buffer,
       filename: `${documentData.document.documentType}-${documentData.document.fullNumber}.pdf`,
