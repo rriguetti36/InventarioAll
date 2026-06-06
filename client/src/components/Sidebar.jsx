@@ -194,16 +194,16 @@ export default function Sidebar({ user, onLogout, isDrawer = false, onNavigate }
                 </Button>
                 {reportsOpen && (
                   <VStack align="stretch" spacing={effectiveCollapsed ? 2 : 1} pl={effectiveCollapsed ? 0 : 3}>
-                    <MenuLink to="/inventory/reports" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Resumen</MenuLink>
-                    {canAccess(user, 'sales') && <MenuLink to="/inventory/reports/sales" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Ventas</MenuLink>}
-                    {canAccess(user, 'purchases') && <MenuLink to="/inventory/reports/purchases" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Compras</MenuLink>}
-                    {canAccess(user, 'kardex') && <MenuLink to="/inventory/reports/kardex" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Kardex</MenuLink>}
-                    {canAccess(user, 'stock') && <MenuLink to="/inventory/reports/stock-valuation" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Valorizacion</MenuLink>}
-                    {canAccess(user, 'stock') && <MenuLink to="/inventory/reports/low-stock" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Reposicion</MenuLink>}
-                    {canAccess(user, 'kardex') && <MenuLink to="/inventory/reports/rotation" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Rotacion</MenuLink>}
-                    {canAccess(user, 'stock') && <MenuLink to="/inventory/reports/aging" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Antiguedad</MenuLink>}
-                    {canAccess(user, 'transfers') && <MenuLink to="/inventory/reports/transfers" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Traslados</MenuLink>}
-                    {canAccess(user, 'stock') && <MenuLink to="/inventory/reports/margin" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Margen</MenuLink>}
+                    {canAccess(user, 'reportSummary') && <MenuLink to="/inventory/reports" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Resumen</MenuLink>}
+                    {canAccess(user, 'reportSales') && <MenuLink to="/inventory/reports/sales" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Ventas</MenuLink>}
+                    {canAccess(user, 'reportPurchases') && <MenuLink to="/inventory/reports/purchases" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Compras</MenuLink>}
+                    {canAccess(user, 'reportKardex') && <MenuLink to="/inventory/reports/kardex" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Kardex</MenuLink>}
+                    {canAccess(user, 'reportValuation') && <MenuLink to="/inventory/reports/stock-valuation" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Valorizacion</MenuLink>}
+                    {canAccess(user, 'reportReplenishment') && <MenuLink to="/inventory/reports/low-stock" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Reposicion</MenuLink>}
+                    {canAccess(user, 'reportRotation') && <MenuLink to="/inventory/reports/rotation" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Rotacion</MenuLink>}
+                    {canAccess(user, 'reportAging') && <MenuLink to="/inventory/reports/aging" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Antiguedad</MenuLink>}
+                    {canAccess(user, 'reportTransfers') && <MenuLink to="/inventory/reports/transfers" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Traslados</MenuLink>}
+                    {canAccess(user, 'reportMargin') && <MenuLink to="/inventory/reports/margin" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Margen</MenuLink>}
                   </VStack>
                 )}
               </>

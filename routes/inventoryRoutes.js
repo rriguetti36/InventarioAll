@@ -7,61 +7,74 @@ const router = express.Router();
 
 router.use(authMiddleware);
 
-router.get('/suppliers', requireRoles(), InventoryController.listSuppliers);
-router.post('/suppliers', requireRoles(), InventoryController.createSupplier);
-router.put('/suppliers/:id', requireRoles(), InventoryController.updateSupplier);
-router.delete('/suppliers/:id', requireRoles(), InventoryController.deleteSupplier);
+const CATALOG_PRODUCTS = ['administrativo', 'operativo'];
+const CATALOG_SUPPLIERS = ['administrativo', 'operativo'];
+const CATALOG_LOCATIONS = ['administrativo', 'operativo'];
+const CATALOG_SHELVES = ['admin_tienda', 'administrativo', 'operativo'];
+const CATALOG_CUSTOMERS = ['admin_tienda', 'administrativo', 'operativo', 'comercial', 'vendedor_tienda'];
+const QUOTATIONS = ['admin_tienda', 'administrativo', 'comercial', 'vendedor_tienda'];
+const SALES = ['admin_tienda', 'administrativo', 'vendedor_tienda'];
+const STOCK = ['admin_tienda', 'administrativo', 'operativo'];
+const PURCHASES = ['administrativo', 'operativo'];
+const TRANSFERS = ['admin_tienda', 'administrativo', 'operativo'];
+const KARDEX = ['admin_tienda', 'administrativo', 'operativo'];
+const PAYMENT_METHOD_READ = ['admin_tienda', 'administrativo', 'comercial', 'vendedor_tienda'];
 
-router.get('/payment-methods', requireRoles('admin_tienda', 'comercial', 'vendedor_tienda'), InventoryController.listPaymentMethods);
-router.post('/payment-methods', requireRoles('admin_tienda', 'comercial'), InventoryController.createPaymentMethod);
-router.put('/payment-methods/:id', requireRoles('admin_tienda', 'comercial'), InventoryController.updatePaymentMethod);
-router.delete('/payment-methods/:id', requireRoles('admin_tienda', 'comercial'), InventoryController.deletePaymentMethod);
+router.get('/suppliers', requireRoles(...CATALOG_SUPPLIERS), InventoryController.listSuppliers);
+router.post('/suppliers', requireRoles(...CATALOG_SUPPLIERS), InventoryController.createSupplier);
+router.put('/suppliers/:id', requireRoles(...CATALOG_SUPPLIERS), InventoryController.updateSupplier);
+router.delete('/suppliers/:id', requireRoles(...CATALOG_SUPPLIERS), InventoryController.deleteSupplier);
 
-router.get('/locations', requireRoles('admin_tienda', 'comercial', 'vendedor_tienda'), InventoryController.listLocations);
-router.post('/locations', requireRoles(), InventoryController.createLocation);
-router.put('/locations/:id', requireRoles(), InventoryController.updateLocation);
-router.delete('/locations/:id', requireRoles(), InventoryController.deleteLocation);
+router.get('/payment-methods', requireRoles(...PAYMENT_METHOD_READ), InventoryController.listPaymentMethods);
+router.post('/payment-methods', requireRoles(), InventoryController.createPaymentMethod);
+router.put('/payment-methods/:id', requireRoles(), InventoryController.updatePaymentMethod);
+router.delete('/payment-methods/:id', requireRoles(), InventoryController.deletePaymentMethod);
 
-router.get('/shelves', requireRoles('admin_tienda', 'comercial', 'vendedor_tienda'), InventoryController.listShelves);
-router.post('/shelves', requireRoles(), InventoryController.createShelf);
-router.put('/shelves/:id', requireRoles(), InventoryController.updateShelf);
-router.delete('/shelves/:id', requireRoles(), InventoryController.deleteShelf);
+router.get('/locations', requireRoles(...CATALOG_LOCATIONS, 'admin_tienda', 'vendedor_tienda'), InventoryController.listLocations);
+router.post('/locations', requireRoles(...CATALOG_LOCATIONS), InventoryController.createLocation);
+router.put('/locations/:id', requireRoles(...CATALOG_LOCATIONS), InventoryController.updateLocation);
+router.delete('/locations/:id', requireRoles(...CATALOG_LOCATIONS), InventoryController.deleteLocation);
 
-router.get('/products', requireRoles(), InventoryController.listProducts);
-router.get('/sellable-items', requireRoles('admin_tienda', 'comercial', 'vendedor_tienda'), InventoryController.listSellableItems);
-router.post('/products', requireRoles(), InventoryController.createProduct);
-router.put('/products/:id', requireRoles(), InventoryController.updateProduct);
-router.delete('/products/:id', requireRoles(), InventoryController.deleteProduct);
+router.get('/shelves', requireRoles(...CATALOG_SHELVES, 'vendedor_tienda'), InventoryController.listShelves);
+router.post('/shelves', requireRoles(...CATALOG_SHELVES), InventoryController.createShelf);
+router.put('/shelves/:id', requireRoles(...CATALOG_SHELVES), InventoryController.updateShelf);
+router.delete('/shelves/:id', requireRoles(...CATALOG_SHELVES), InventoryController.deleteShelf);
 
-router.get('/customers', requireRoles('admin_tienda', 'comercial', 'vendedor_tienda'), InventoryController.listCustomers);
-router.post('/customers', requireRoles('admin_tienda', 'vendedor_tienda'), InventoryController.createCustomer);
-router.put('/customers/:id', requireRoles('admin_tienda', 'vendedor_tienda'), InventoryController.updateCustomer);
-router.delete('/customers/:id', requireRoles('admin_tienda', 'vendedor_tienda'), InventoryController.deleteCustomer);
+router.get('/products', requireRoles(...CATALOG_PRODUCTS), InventoryController.listProducts);
+router.get('/sellable-items', requireRoles(...QUOTATIONS, ...SALES), InventoryController.listSellableItems);
+router.post('/products', requireRoles(...CATALOG_PRODUCTS), InventoryController.createProduct);
+router.put('/products/:id', requireRoles(...CATALOG_PRODUCTS), InventoryController.updateProduct);
+router.delete('/products/:id', requireRoles(...CATALOG_PRODUCTS), InventoryController.deleteProduct);
 
-router.get('/sellers', requireRoles('admin_tienda', 'comercial', 'vendedor_tienda'), InventoryController.listSellers);
-router.get('/quotations/next-number', requireRoles('admin_tienda', 'comercial', 'vendedor_tienda'), InventoryController.getNextQuotationNumber);
-router.get('/quotations', requireRoles('admin_tienda', 'comercial', 'vendedor_tienda'), InventoryController.listQuotations);
-router.post('/quotations', requireRoles('admin_tienda', 'comercial', 'vendedor_tienda'), InventoryController.createQuotation);
-router.get('/quotations/:id', requireRoles('admin_tienda', 'comercial', 'vendedor_tienda'), InventoryController.getQuotation);
-router.put('/quotations/:id', requireRoles('admin_tienda', 'comercial', 'vendedor_tienda'), InventoryController.updateQuotation);
-router.get('/quotations/:id/pdf', requireRoles('admin_tienda', 'comercial', 'vendedor_tienda'), InventoryController.getQuotationPdf);
-router.post('/quotations/:id/approve', requireRoles('admin_tienda', 'comercial', 'vendedor_tienda'), InventoryController.approveQuotation);
+router.get('/customers', requireRoles(...CATALOG_CUSTOMERS), InventoryController.listCustomers);
+router.post('/customers', requireRoles(...CATALOG_CUSTOMERS), InventoryController.createCustomer);
+router.put('/customers/:id', requireRoles(...CATALOG_CUSTOMERS), InventoryController.updateCustomer);
+router.delete('/customers/:id', requireRoles(...CATALOG_CUSTOMERS), InventoryController.deleteCustomer);
 
-router.get('/stock', requireRoles('admin_tienda', 'comercial', 'vendedor_tienda'), InventoryController.listStock);
+router.get('/sellers', requireRoles(...QUOTATIONS), InventoryController.listSellers);
+router.get('/quotations/next-number', requireRoles(...QUOTATIONS), InventoryController.getNextQuotationNumber);
+router.get('/quotations', requireRoles(...QUOTATIONS), InventoryController.listQuotations);
+router.post('/quotations', requireRoles(...QUOTATIONS), InventoryController.createQuotation);
+router.get('/quotations/:id', requireRoles(...QUOTATIONS), InventoryController.getQuotation);
+router.put('/quotations/:id', requireRoles(...QUOTATIONS), InventoryController.updateQuotation);
+router.get('/quotations/:id/pdf', requireRoles(...QUOTATIONS), InventoryController.getQuotationPdf);
+router.post('/quotations/:id/approve', requireRoles(...QUOTATIONS), InventoryController.approveQuotation);
 
-router.get('/purchases', requireRoles(), InventoryController.listPurchases);
-router.post('/purchases', requireRoles(), InventoryController.createPurchase);
+router.get('/stock', requireRoles(...STOCK), InventoryController.listStock);
 
-router.get('/transfers', requireRoles(), InventoryController.listTransfers);
-router.post('/transfers', requireRoles(), InventoryController.createTransfer);
+router.get('/purchases', requireRoles(...PURCHASES), InventoryController.listPurchases);
+router.post('/purchases', requireRoles(...PURCHASES), InventoryController.createPurchase);
 
-router.get('/kardex', requireRoles('admin_tienda', 'comercial', 'vendedor_tienda'), InventoryController.listKardex);
+router.get('/transfers', requireRoles(...TRANSFERS), InventoryController.listTransfers);
+router.post('/transfers', requireRoles(...TRANSFERS), InventoryController.createTransfer);
 
-router.get('/sales', requireRoles('admin_tienda', 'vendedor_tienda'), InventoryController.listSales);
-router.get('/sales/:id', requireRoles('admin_tienda', 'vendedor_tienda'), InventoryController.getSale);
-router.post('/sales/:id/documents', requireRoles('admin_tienda', 'vendedor_tienda'), InventoryController.createSaleDocument);
-router.post('/sales', requireRoles('admin_tienda', 'vendedor_tienda'), InventoryController.createSale);
-router.post('/sales/:id/close', requireRoles('admin_tienda', 'vendedor_tienda'), InventoryController.closeSale);
-router.get('/sale-documents/:id/pdf', requireRoles('admin_tienda', 'vendedor_tienda'), InventoryController.getSaleDocumentPdf);
+router.get('/kardex', requireRoles(...KARDEX), InventoryController.listKardex);
+
+router.get('/sales', requireRoles(...SALES), InventoryController.listSales);
+router.get('/sales/:id', requireRoles(...SALES), InventoryController.getSale);
+router.post('/sales/:id/documents', requireRoles(...SALES), InventoryController.createSaleDocument);
+router.post('/sales', requireRoles(...SALES), InventoryController.createSale);
+router.post('/sales/:id/close', requireRoles(...SALES), InventoryController.closeSale);
+router.get('/sale-documents/:id/pdf', requireRoles(...SALES), InventoryController.getSaleDocumentPdf);
 
 module.exports = router;

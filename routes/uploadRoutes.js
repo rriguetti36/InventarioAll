@@ -36,7 +36,7 @@ function uploadDir(user) {
 
 router.use(authMiddleware);
 
-router.post('/product-image', requireRoles(), express.raw({ type: 'image/*', limit: '2mb' }), async (req, res, next) => {
+router.post('/product-image', requireRoles('administrativo', 'operativo'), express.raw({ type: 'image/*', limit: '2mb' }), async (req, res, next) => {
   try {
     let type = req.get('content-type') || '';
     let buffer = Buffer.isBuffer(req.body) ? req.body : null;
