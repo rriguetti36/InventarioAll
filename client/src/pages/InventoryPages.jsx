@@ -162,6 +162,55 @@ function normalizedWhatsappPhone(phone) {
   return digits
 }
 
+function loadImageFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const image = new window.Image()
+    image.onload = () => {
+      URL.revokeObjectURL(url)
+      resolve(image)
+    }
+    image.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('No se pudo leer la imagen'))
+    }
+    image.src = url
+  })
+}
+
+function canvasToBlob(canvas, mimeType, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob)
+      else reject(new Error('No se pudo procesar la imagen'))
+    }, mimeType, quality)
+  })
+}
+
+async function compressProductImage(file) {
+  const image = await loadImageFromFile(file)
+  const maxSide = 1200
+  const scale = Math.min(1, maxSide / Math.max(image.width, image.height))
+  const width = Math.max(1, Math.round(image.width * scale))
+  const height = Math.max(1, Math.round(image.height * scale))
+  const canvas = document.createElement('canvas')
+  const context = canvas.getContext('2d')
+  canvas.width = width
+  canvas.height = height
+  context.fillStyle = '#ffffff'
+  context.fillRect(0, 0, width, height)
+  context.drawImage(image, 0, 0, width, height)
+
+  const mimeType = 'image/jpeg'
+  const qualities = [0.82, 0.72, 0.62, 0.52]
+  let compressed = null
+  for (const quality of qualities) {
+    compressed = await canvasToBlob(canvas, mimeType, quality)
+    if (compressed.size <= 700 * 1024) break
+  }
+  return { blob: compressed, mimeType }
+}
+
 function WhatsAppIcon() {
   return (
     <Box as="svg" viewBox="0 0 32 32" boxSize="1em" fill="currentColor" aria-hidden="true" focusable="false">
@@ -819,24 +868,25 @@ export function ProductForm() {
             toast({ title: 'Selecciona una imagen valida', status: 'warning', duration: 3000, isClosable: true })
             return
           }
-          if (file.size > 2 * 1024 * 1024) {
-            toast({ title: 'La foto debe pesar menos de 2 MB', status: 'warning', duration: 3000, isClosable: true })
+          if (file.size > 8 * 1024 * 1024) {
+            toast({ title: 'La foto es demasiado pesada', description: 'Usa una imagen menor a 8 MB.', status: 'warning', duration: 3000, isClosable: true })
             return
           }
-          const reader = new FileReader()
-          reader.onload = async () => {
-            try {
-              const res = await api.post('/uploads/product-image', {
-                dataUrl: reader.result,
-                mimeType: file.type,
-              })
-              setFormData((prev) => ({ ...prev, imageUrl: res.data.url }))
-              toast({ title: 'Foto subida', status: 'success', duration: 2500, isClosable: true })
-            } catch (err) {
-              toast({ title: 'Error al subir foto', description: err.response?.data?.error || err.message, status: 'error', duration: 3000, isClosable: true })
-            }
+          try {
+            const image = await compressProductImage(file)
+            const res = await api.post('/uploads/product-image', image.blob, {
+              headers: { 'Content-Type': image.mimeType },
+            })
+            setFormData((prev) => ({ ...prev, imageUrl: res.data.url }))
+            toast({ title: 'Foto subida', description: `Optimizada a ${Math.round(image.blob.size / 1024)} KB.`, status: 'success', duration: 2500, isClosable: true })
+          } catch (err) {
+            const description = err.response?.status === 413
+              ? 'El servidor o proxy aun tiene un limite bajo para archivos. Sube el limite a 2 MB o usa una imagen mas liviana.'
+              : err.response?.data?.error || err.message
+            toast({ title: 'Error al subir foto', description, status: 'error', duration: 4000, isClosable: true })
+          } finally {
+            event.target.value = ''
           }
-          reader.readAsDataURL(file)
         }
 
         return (
