@@ -25,6 +25,10 @@ function text(value) {
   return value === undefined || value === null || value === '' ? null : String(value);
 }
 
+function isServiceType(value) {
+  return String(value || '').toLowerCase() === 'servicio';
+}
+
 function taxableLine(quantity, unitPrice, affectsTax) {
   const total = Number(quantity || 0) * Number(unitPrice || 0);
   if (!bit(affectsTax)) {
@@ -488,6 +492,7 @@ class InventoryModel {
         p.sku AS productSku,
         v.sku AS variantSku,
         p.name,
+        p.type,
         p.model,
         v.displayName,
         p.unit,
@@ -501,10 +506,32 @@ class InventoryModel {
         AND ((v.id IS NULL AND st.variantId IS NULL) OR st.variantId = v.id)
         AND (@locationId IS NULL OR st.locationId = @locationId)
       WHERE p.estado = 1
-      GROUP BY v.id, p.id, p.sku, v.sku, p.name, p.model, v.displayName, p.unit, p.costPrice, p.salePrice, p.affectsTax
+      GROUP BY v.id, p.id, p.sku, v.sku, p.name, p.type, p.model, v.displayName, p.unit, p.costPrice, p.salePrice, p.affectsTax
       ORDER BY ISNULL(v.displayName, p.name)
     `);
     return result.recordset;
+  }
+
+  static async productTypeMap(transaction, details = []) {
+    const ids = [...new Set(details.map((item) => Number(item.productId)).filter(Boolean))];
+    if (!ids.length) return new Map();
+    const result = await new sql.Request(transaction).query(`
+      SELECT id, type
+      FROM Products
+      WHERE id IN (${ids.join(',')})
+    `);
+    return new Map(result.recordset.map((item) => [Number(item.id), item.type]));
+  }
+
+  static async ensureInventoryProducts(transaction, details = [], actionLabel = 'movimiento') {
+    const typeMap = await InventoryModel.productTypeMap(transaction, details);
+    const serviceItem = details.find((item) => isServiceType(typeMap.get(Number(item.productId))));
+    if (serviceItem) {
+      const error = new Error(`No se puede registrar un servicio en ${actionLabel} de inventario`);
+      error.status = 400;
+      throw error;
+    }
+    return typeMap;
   }
 
   static async listCustomers() {
@@ -943,6 +970,8 @@ class InventoryModel {
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
     try {
+      await InventoryModel.ensureInventoryProducts(transaction, data.details, 'traslados');
+
       for (const item of data.details) {
         const current = await InventoryModel.getStock(transaction, item.productId, item.variantId, data.sourceLocationId, nullableInt(data.sourceShelfId));
         if (Number(current) < Number(item.quantity)) {
@@ -988,6 +1017,8 @@ class InventoryModel {
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
     try {
+      await InventoryModel.ensureInventoryProducts(transaction, data.details, 'compras');
+
       const total = data.details.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitCost || 0), 0);
       const header = await new sql.Request(transaction)
         .input('supplierId', sql.Int, nullableInt(data.supplierId))
@@ -1255,8 +1286,10 @@ class InventoryModel {
       const detailsResult = await new sql.Request(transaction)
         .input('saleId', sql.Int, Number(id))
         .query('SELECT * FROM SaleDetails WHERE saleId = @saleId');
+      const productTypes = await InventoryModel.productTypeMap(transaction, detailsResult.recordset);
 
       for (const item of detailsResult.recordset) {
+        if (isServiceType(productTypes.get(Number(item.productId)))) continue;
         const current = await InventoryModel.getStock(transaction, item.productId, item.variantId, data.locationId, nullableInt(data.shelfId));
         if (Number(current) < Number(item.quantity)) {
           const error = new Error('Stock insuficiente para cerrar la venta');
@@ -1279,6 +1312,7 @@ class InventoryModel {
         `);
 
       for (const item of detailsResult.recordset) {
+        if (isServiceType(productTypes.get(Number(item.productId)))) continue;
         await InventoryModel.addStock(transaction, item.productId, item.variantId, data.locationId, nullableInt(data.shelfId), Number(item.quantity) * -1);
         await InventoryModel.insertMovement(transaction, item.productId, item.variantId, data.locationId, nullableInt(data.shelfId), 'salida', Number(item.quantity), 'venta', Number(id), data.notes || sale.notes || null);
       }
@@ -1296,7 +1330,9 @@ class InventoryModel {
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
     try {
+      const productTypes = await InventoryModel.productTypeMap(transaction, data.details);
       for (const item of data.details) {
+        if (isServiceType(productTypes.get(Number(item.productId)))) continue;
         const current = await InventoryModel.getStock(transaction, item.productId, item.variantId, data.locationId, nullableInt(data.shelfId));
         if (Number(current) < Number(item.quantity)) {
           const error = new Error('Stock insuficiente para uno o mas productos');
@@ -1334,6 +1370,7 @@ class InventoryModel {
 
       for (const item of data.details) {
         await InventoryModel.insertSaleDetail(transaction, sale.id, item);
+        if (isServiceType(productTypes.get(Number(item.productId)))) continue;
         await InventoryModel.addStock(transaction, item.productId, item.variantId, data.locationId, nullableInt(data.shelfId), Number(item.quantity) * -1);
         await InventoryModel.insertMovement(transaction, item.productId, item.variantId, data.locationId, nullableInt(data.shelfId), 'salida', Number(item.quantity), 'venta', sale.id, data.notes || null);
       }

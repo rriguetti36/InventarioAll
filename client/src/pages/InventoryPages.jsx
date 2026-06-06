@@ -113,6 +113,10 @@ function productTypeLabel(value) {
   return productTypeOptions.find((item) => item.value === value)?.label || value || '-'
 }
 
+function isServiceItem(item) {
+  return String(item?.type || item?.productType || '').toLowerCase() === 'servicio'
+}
+
 function parseAttributes(value) {
   if (!value) return {}
   try {
@@ -818,7 +822,17 @@ export function ProductForm() {
       {(formData, handleChange, setFormData) => {
         const characteristics = Array.isArray(formData.characteristics) ? formData.characteristics : []
         const fields = attributeTemplates[formData.type] || attributeTemplates.otros
+        const isService = formData.type === 'servicio'
         const characteristicNames = [...new Set([...fields, ...characteristics.map((item) => item.name)])]
+
+        const handleProductChange = (event) => {
+          const { name, value } = event.target
+          if (name === 'type' && value === 'servicio') {
+            setFormData((prev) => ({ ...prev, type: value, unit: prev.unit === 'unidad' ? 'servicio' : prev.unit, minStock: 0 }))
+            return
+          }
+          handleChange(event)
+        }
 
         const setCharacteristicValues = (name, values) => {
           setFormData((prev) => {
@@ -893,15 +907,15 @@ export function ProductForm() {
           <>
             <SimpleGrid columns={{ base: 1, md: 12 }} spacing={4}>
               <Box gridColumn={{ base: 'span 1', md: 'span 4' }}>
-                <FormControl isRequired><FormLabel>SKU</FormLabel><Input name="sku" value={formData.sku} onChange={handleChange} /></FormControl>
+                <FormControl isRequired><FormLabel>SKU</FormLabel><Input name="sku" value={formData.sku} onChange={handleProductChange} /></FormControl>
               </Box>
               <Box gridColumn={{ base: 'span 1', md: 'span 8' }}>
-                <FormControl isRequired><FormLabel>Nombre</FormLabel><Input name="name" value={formData.name} onChange={handleChange} /></FormControl>
+                <FormControl isRequired><FormLabel>Nombre</FormLabel><Input name="name" value={formData.name} onChange={handleProductChange} /></FormControl>
               </Box>
               <Box gridColumn={{ base: 'span 1', md: 'span 4' }}>
                 <FormControl>
                 <FormLabel>Rubro</FormLabel>
-                <Input name="category" list="product-category-options" value={formData.category || ''} onChange={handleChange} placeholder="Selecciona o escribe un rubro" />
+                <Input name="category" list="product-category-options" value={formData.category || ''} onChange={handleProductChange} placeholder="Selecciona o escribe un rubro" />
                 <datalist id="product-category-options">
                   {productCategoryOptions.map((item) => <option key={item} value={item} />)}
                 </datalist>
@@ -910,37 +924,37 @@ export function ProductForm() {
               <Box gridColumn={{ base: 'span 1', md: 'span 4' }}>
                 <FormControl>
                   <FormLabel>Tipo</FormLabel>
-                  <Select name="type" value={formData.type} onChange={handleChange}>
+                  <Select name="type" value={formData.type} onChange={handleProductChange}>
                     {productTypeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                   </Select>
                 </FormControl>
               </Box>
               <Box gridColumn={{ base: 'span 1', md: 'span 4' }}>
-                <FormControl><FormLabel>Modelo</FormLabel><Input name="model" value={formData.model || ''} onChange={handleChange} /></FormControl>
+                <FormControl><FormLabel>Modelo</FormLabel><Input name="model" value={formData.model || ''} onChange={handleProductChange} /></FormControl>
               </Box>
               <Box gridColumn={{ base: 'span 1', md: 'span 4' }}>
-                <FormControl><FormLabel>Proveedor</FormLabel><Select name="supplierId" value={formData.supplierId || ''} onChange={handleChange}><option value="">Sin proveedor</option>{suppliers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></FormControl>
+                <FormControl><FormLabel>Proveedor</FormLabel><Select name="supplierId" value={formData.supplierId || ''} onChange={handleProductChange}><option value="">Sin proveedor</option>{suppliers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></FormControl>
               </Box>
               <Box gridColumn={{ base: 'span 1', md: 'span 4' }}>
-                <FormControl><FormLabel>Unidad</FormLabel><Input name="unit" value={formData.unit} onChange={handleChange} /></FormControl>
+                <FormControl><FormLabel>Unidad</FormLabel><Input name="unit" value={formData.unit} onChange={handleProductChange} /></FormControl>
               </Box>
               <Box gridColumn={{ base: 'span 1', md: 'span 4' }}>
-                <FormControl><FormLabel>Stock minimo</FormLabel><Input name="minStock" type="number" value={formData.minStock} onChange={handleChange} /></FormControl>
+                <FormControl><FormLabel>Stock minimo</FormLabel><Input name="minStock" type="number" value={formData.minStock} onChange={handleProductChange} isDisabled={isService} /></FormControl>
               </Box>
               <Box gridColumn={{ base: 'span 1', md: 'span 4' }}>
-                <FormControl><FormLabel>Costo</FormLabel><Input name="costPrice" type="number" value={formData.costPrice} onChange={handleChange} /></FormControl>
+                <FormControl><FormLabel>Costo</FormLabel><Input name="costPrice" type="number" value={formData.costPrice} onChange={handleProductChange} /></FormControl>
               </Box>
               <Box gridColumn={{ base: 'span 1', md: 'span 4' }}>
-                <FormControl><FormLabel>Precio venta</FormLabel><Input name="salePrice" type="number" value={formData.salePrice} onChange={handleChange} /></FormControl>
+                <FormControl><FormLabel>Precio venta</FormLabel><Input name="salePrice" type="number" value={formData.salePrice} onChange={handleProductChange} /></FormControl>
               </Box>
               <Box gridColumn={{ base: 'span 1', md: 'span 4' }}>
-                <FormControl><FormLabel>Afecta IGV 18%</FormLabel><Select name="affectsTax" value={taxFlag(formData.affectsTax)} onChange={handleChange}><option value={1}>Si</option><option value={0}>No</option></Select></FormControl>
+                <FormControl><FormLabel>Afecta IGV 18%</FormLabel><Select name="affectsTax" value={taxFlag(formData.affectsTax)} onChange={handleProductChange}><option value={1}>Si</option><option value={0}>No</option></Select></FormControl>
               </Box>
               <Box gridColumn={{ base: 'span 1', md: 'span 4' }}>
-                <FormControl><FormLabel>Estado</FormLabel><Select name="estado" value={formData.estado} onChange={handleChange}><option value={1}>Activo</option><option value={0}>Inactivo</option></Select></FormControl>
+                <FormControl><FormLabel>Estado</FormLabel><Select name="estado" value={formData.estado} onChange={handleProductChange}><option value={1}>Activo</option><option value={0}>Inactivo</option></Select></FormControl>
               </Box>
               <Box gridColumn={{ base: 'span 1', md: 'span 12' }}>
-                <FormControl><FormLabel>Descripcion</FormLabel><Textarea name="description" value={formData.description || ''} onChange={handleChange} /></FormControl>
+                <FormControl><FormLabel>Descripcion</FormLabel><Textarea name="description" value={formData.description || ''} onChange={handleProductChange} /></FormControl>
               </Box>
               <Box gridColumn={{ base: 'span 1', md: 'span 12' }}>
                 <FormControl>
@@ -955,7 +969,7 @@ export function ProductForm() {
                     )}
                     <VStack align="stretch" spacing={3} flex="1">
                       <Input type="file" accept="image/*" onChange={uploadProductImage} />
-                      <Input name="imageUrl" value={formData.imageUrl || ''} onChange={handleChange} placeholder="O pega una URL de imagen" />
+                      <Input name="imageUrl" value={formData.imageUrl || ''} onChange={handleProductChange} placeholder="O pega una URL de imagen" />
                       <Button type="button" variant="outline" alignSelf={{ base: 'stretch', sm: 'flex-start' }} onClick={() => setFormData((prev) => ({ ...prev, imageUrl: '' }))}>
                         Quitar foto
                       </Button>
@@ -1225,6 +1239,7 @@ function MovementForm({ type }) {
   }, [locations, formData.locationId])
 
   const filteredProducts = sellableItems.filter((product) => {
+    if (type === 'purchase' && isServiceItem(product)) return false
     const text = `${product.variantSku || product.productSku || ''} ${productLabel(product)}`.toLowerCase()
     return text.includes(productSearch.toLowerCase())
   }).slice(0, 12)
@@ -1253,7 +1268,7 @@ function MovementForm({ type }) {
   }
 
   const chooseProduct = (product) => {
-    if (type === 'sale' && Number(product.stock || 0) <= 0) {
+    if (type === 'sale' && !isServiceItem(product) && Number(product.stock || 0) <= 0) {
       toast({ title: 'Producto sin stock', description: 'No se puede seleccionar un producto con 0 existencias', status: 'warning', duration: 3000, isClosable: true })
       return
     }
@@ -1272,7 +1287,7 @@ function MovementForm({ type }) {
       toast({ title: 'Selecciona una existencia', status: 'warning', duration: 2500, isClosable: true })
       return
     }
-    if (type === 'sale' && Number(selectedProduct.stock || 0) <= 0) {
+    if (type === 'sale' && !isServiceItem(selectedProduct) && Number(selectedProduct.stock || 0) <= 0) {
       toast({ title: 'Producto sin stock', description: 'No se puede agregar un producto con 0 existencias', status: 'warning', duration: 3000, isClosable: true })
       return
     }
@@ -1284,6 +1299,8 @@ function MovementForm({ type }) {
         productDescription: productLabel(selectedProduct),
         productSku: selectedProduct.productSku,
         variantSku: selectedProduct.variantSku,
+        type: selectedProduct.type,
+        unit: selectedProduct.unit || (isServiceItem(selectedProduct) ? 'servicio' : 'unidad'),
         quantity: Number(detailDraft.quantity || 0),
         price: Number(detailDraft.price || 0),
         affectsTax: taxFlag(selectedProduct.affectsTax) === 1,
@@ -1299,6 +1316,7 @@ function MovementForm({ type }) {
       productId: item.productId,
       variantId: item.variantId,
       productDescription: item.productDescription,
+      unit: item.unit || 'unidad',
       quantity: Number(item.quantity),
       listPrice: Number(item.price || 0),
       affectsTax: item.affectsTax,
@@ -1419,9 +1437,9 @@ function MovementForm({ type }) {
               {productSearch && (
                 <Box borderWidth="1px" borderRadius="md" maxH="220px" overflowY="auto">
                   {filteredProducts.map((product) => (
-                    <Box key={`${product.productId}-${product.variantId || 'base'}`} p={3} cursor={type === 'sale' && Number(product.stock || 0) <= 0 ? 'not-allowed' : 'pointer'} opacity={type === 'sale' && Number(product.stock || 0) <= 0 ? 0.65 : 1} _hover={{ bg: type === 'sale' && Number(product.stock || 0) <= 0 ? 'red.50' : 'gray.50' }} onClick={() => chooseProduct(product)}>
+                    <Box key={`${product.productId}-${product.variantId || 'base'}`} p={3} cursor={type === 'sale' && !isServiceItem(product) && Number(product.stock || 0) <= 0 ? 'not-allowed' : 'pointer'} opacity={type === 'sale' && !isServiceItem(product) && Number(product.stock || 0) <= 0 ? 0.65 : 1} _hover={{ bg: type === 'sale' && !isServiceItem(product) && Number(product.stock || 0) <= 0 ? 'red.50' : 'gray.50' }} onClick={() => chooseProduct(product)}>
                       <Text fontWeight="semibold">{productLabel(product)}</Text>
-                      <Text fontSize="sm" color={type === 'sale' && Number(product.stock || 0) <= 0 ? 'red.600' : 'gray.700'}>SKU: {product.variantSku} | Stock: {product.stock} | Precio: {type === 'purchase' ? product.costPrice : product.salePrice} | Unidad: {product.unit || 'unidad'}</Text>
+                      <Text fontSize="sm" color={type === 'sale' && !isServiceItem(product) && Number(product.stock || 0) <= 0 ? 'red.600' : 'gray.700'}>SKU: {product.variantSku} | {isServiceItem(product) ? 'Servicio sin stock' : `Stock: ${product.stock}`} | Precio: {type === 'purchase' ? product.costPrice : product.salePrice} | Unidad: {product.unit || 'unidad'}</Text>
                     </Box>
                   ))}
                 </Box>
@@ -1498,6 +1516,7 @@ export function TransferForm() {
   const targetShelves = useMemo(() => shelves.filter((item) => String(item.locationId) === String(formData.targetLocationId)), [shelves, formData.targetLocationId])
 
   const filteredProducts = sellableItems.filter((product) => {
+    if (isServiceItem(product)) return false
     const text = `${product.variantSku || product.productSku || ''} ${productLabel(product)}`.toLowerCase()
     return text.includes(productSearch.toLowerCase())
   }).slice(0, 12)
@@ -1510,7 +1529,7 @@ export function TransferForm() {
   }
 
   const chooseProduct = (product) => {
-    if (Number(product.stock || 0) <= 0) {
+    if (!isServiceItem(product) && Number(product.stock || 0) <= 0) {
       toast({ title: 'Producto sin stock', description: 'No se puede seleccionar un producto con 0 existencias', status: 'warning', duration: 3000, isClosable: true })
       return
     }
@@ -1524,7 +1543,7 @@ export function TransferForm() {
       toast({ title: 'Selecciona una existencia', status: 'warning', duration: 2500, isClosable: true })
       return
     }
-    if (Number(selectedProduct.stock || 0) <= 0) {
+    if (!isServiceItem(selectedProduct) && Number(selectedProduct.stock || 0) <= 0) {
       toast({ title: 'Producto sin stock', description: 'No se puede agregar un producto con 0 existencias', status: 'warning', duration: 3000, isClosable: true })
       return
     }
@@ -2305,6 +2324,7 @@ export function QuotationForm() {
             variantId: item.variantId,
             productDescription: item.productDescription,
             unit: item.unit || 'unidad',
+            type: item.type,
             quantity: Number(item.quantity || 0),
             listPrice: Number(item.listPrice || 0),
             unitPrice: Number(item.unitPrice || 0),
@@ -2388,7 +2408,7 @@ export function QuotationForm() {
   }
 
   const chooseProduct = (product) => {
-    if (Number(product.stock || 0) <= 0) {
+    if (!isServiceItem(product) && Number(product.stock || 0) <= 0) {
       toast({ title: 'Producto sin stock', description: 'No se puede seleccionar un producto con 0 existencias', status: 'warning', duration: 3000, isClosable: true })
       return
     }
@@ -2402,7 +2422,7 @@ export function QuotationForm() {
       toast({ title: 'Selecciona un producto', status: 'warning', duration: 2500, isClosable: true })
       return
     }
-    if (Number(selectedProduct.stock || 0) <= 0) {
+    if (!isServiceItem(selectedProduct) && Number(selectedProduct.stock || 0) <= 0) {
       toast({ title: 'Producto sin stock', description: 'No se puede agregar un producto con 0 existencias', status: 'warning', duration: 3000, isClosable: true })
       return
     }
@@ -2412,7 +2432,8 @@ export function QuotationForm() {
       productId: selectedProduct.productId,
       variantId: selectedProduct.variantId,
       productDescription: productLabel(selectedProduct),
-      unit: selectedProduct.unit || 'unidad',
+      unit: selectedProduct.unit || (isServiceItem(selectedProduct) ? 'servicio' : 'unidad'),
+      type: selectedProduct.type,
       quantity,
       listPrice: Number(selectedProduct.salePrice || 0),
       unitPrice,
@@ -2523,9 +2544,9 @@ export function QuotationForm() {
               {productSearch && (
                 <Box borderWidth="1px" borderRadius="md" maxH="220px" overflowY="auto">
                   {filteredProducts.map((product) => (
-                    <Box key={`${product.productId}-${product.variantId || 'base'}`} p={3} cursor={Number(product.stock || 0) <= 0 ? 'not-allowed' : 'pointer'} opacity={Number(product.stock || 0) <= 0 ? 0.65 : 1} _hover={{ bg: Number(product.stock || 0) <= 0 ? 'red.50' : 'gray.50' }} onClick={() => chooseProduct(product)}>
+                    <Box key={`${product.productId}-${product.variantId || 'base'}`} p={3} cursor={!isServiceItem(product) && Number(product.stock || 0) <= 0 ? 'not-allowed' : 'pointer'} opacity={!isServiceItem(product) && Number(product.stock || 0) <= 0 ? 0.65 : 1} _hover={{ bg: !isServiceItem(product) && Number(product.stock || 0) <= 0 ? 'red.50' : 'gray.50' }} onClick={() => chooseProduct(product)}>
                       <Text fontWeight="semibold">{productLabel(product)}</Text>
-                      <Text fontSize="sm" color={Number(product.stock || 0) <= 0 ? 'red.600' : 'gray.700'}>SKU: {product.variantSku} | Stock: {product.stock} | Precio: {product.salePrice} | Unidad: {product.unit || 'unidad'}</Text>
+                      <Text fontSize="sm" color={!isServiceItem(product) && Number(product.stock || 0) <= 0 ? 'red.600' : 'gray.700'}>SKU: {product.variantSku} | {isServiceItem(product) ? 'Servicio sin stock' : `Stock: ${product.stock}`} | Precio: {product.salePrice} | Unidad: {product.unit || 'unidad'}</Text>
                     </Box>
                   ))}
                 </Box>
