@@ -117,6 +117,12 @@ function isServiceItem(item) {
   return String(item?.type || item?.productType || '').toLowerCase() === 'servicio'
 }
 
+function detailDescription(label, note) {
+  const cleanLabel = String(label || '').trim()
+  const cleanNote = String(note || '').trim()
+  return cleanNote ? `${cleanLabel}\n${cleanNote}`.slice(0, 500) : cleanLabel
+}
+
 function parseAttributes(value) {
   if (!value) return {}
   try {
@@ -1224,7 +1230,7 @@ function MovementForm({ type }) {
   const [productModalOpen, setProductModalOpen] = useState(false)
   const [productSearch, setProductSearch] = useState('')
   const [selectedProduct, setSelectedProduct] = useState(null)
-  const [detailDraft, setDetailDraft] = useState({ quantity: 1, price: 0 })
+  const [detailDraft, setDetailDraft] = useState({ quantity: 1, price: 0, note: '' })
   const [showCustomerOptions, setShowCustomerOptions] = useState(false)
   const toast = useToast()
   const navigate = useNavigate()
@@ -1263,7 +1269,7 @@ function MovementForm({ type }) {
   const openProductModal = () => {
     setProductSearch('')
     setSelectedProduct(null)
-    setDetailDraft({ quantity: 1, price: 0 })
+    setDetailDraft({ quantity: 1, price: 0, note: '' })
     setProductModalOpen(true)
   }
 
@@ -1274,7 +1280,7 @@ function MovementForm({ type }) {
     }
     setSelectedProduct(product)
     setProductSearch(productLabel(product))
-    setDetailDraft({ quantity: 1, price: type === 'purchase' ? Number(product.costPrice || 0) : Number(product.salePrice || 0) })
+    setDetailDraft({ quantity: 1, price: type === 'purchase' ? Number(product.costPrice || 0) : Number(product.salePrice || 0), note: '' })
   }
 
   const chooseCustomer = (customer) => {
@@ -1296,7 +1302,7 @@ function MovementForm({ type }) {
       details: [...prev.details, {
         productId: selectedProduct.productId,
         variantId: selectedProduct.variantId,
-        productDescription: productLabel(selectedProduct),
+        productDescription: detailDescription(productLabel(selectedProduct), detailDraft.note),
         productSku: selectedProduct.productSku,
         variantSku: selectedProduct.variantSku,
         type: selectedProduct.type,
@@ -1449,6 +1455,12 @@ function MovementForm({ type }) {
                 <FormControl><FormLabel>Cantidad</FormLabel><Input type="number" value={detailDraft.quantity} onChange={(e) => setDetailDraft({ ...detailDraft, quantity: e.target.value })} /></FormControl>
                 <FormControl><FormLabel>Importe</FormLabel><Input value={(Number(detailDraft.quantity || 0) * Number(detailDraft.price || 0)).toFixed(2)} isReadOnly /></FormControl>
               </Flex>
+              {type === 'sale' && isServiceItem(selectedProduct) && (
+                <FormControl>
+                  <FormLabel>Notas del servicio</FormLabel>
+                  <Textarea value={detailDraft.note || ''} onChange={(e) => setDetailDraft({ ...detailDraft, note: e.target.value })} placeholder="Ejemplo: alcance, horarios, condiciones o detalle tecnico" />
+                </FormControl>
+              )}
             </VStack>
           </ModalBody>
           <ModalFooter>
@@ -2277,7 +2289,7 @@ export function QuotationForm() {
   const [productModalOpen, setProductModalOpen] = useState(false)
   const [productSearch, setProductSearch] = useState('')
   const [selectedProduct, setSelectedProduct] = useState(null)
-  const [detailDraft, setDetailDraft] = useState({ quantity: 1, unitPrice: 0 })
+  const [detailDraft, setDetailDraft] = useState({ quantity: 1, unitPrice: 0, note: '' })
   const [formData, setFormData] = useState({
     quotationNumber: '',
     quotationDate: today,
@@ -2403,7 +2415,7 @@ export function QuotationForm() {
   const openProductModal = () => {
     setProductSearch('')
     setSelectedProduct(null)
-    setDetailDraft({ quantity: 1, unitPrice: 0 })
+    setDetailDraft({ quantity: 1, unitPrice: 0, note: '' })
     setProductModalOpen(true)
   }
 
@@ -2414,7 +2426,7 @@ export function QuotationForm() {
     }
     setSelectedProduct(product)
     setProductSearch(productLabel(product))
-    setDetailDraft({ quantity: 1, unitPrice: Number(product.salePrice || 0) })
+    setDetailDraft({ quantity: 1, unitPrice: Number(product.salePrice || 0), note: '' })
   }
 
   const acceptProduct = () => {
@@ -2431,7 +2443,7 @@ export function QuotationForm() {
     const detail = {
       productId: selectedProduct.productId,
       variantId: selectedProduct.variantId,
-      productDescription: productLabel(selectedProduct),
+      productDescription: detailDescription(productLabel(selectedProduct), detailDraft.note),
       unit: selectedProduct.unit || (isServiceItem(selectedProduct) ? 'servicio' : 'unidad'),
       type: selectedProduct.type,
       quantity,
@@ -2560,6 +2572,12 @@ export function QuotationForm() {
                 <FormControl><FormLabel>Cantidad</FormLabel><Input type="number" value={detailDraft.quantity} onChange={(e) => setDetailDraft({ ...detailDraft, quantity: e.target.value })} /></FormControl>
                 <FormControl><FormLabel>Total</FormLabel><Input value={draftTaxLine.total.toFixed(2)} isReadOnly /></FormControl>
               </Flex>
+              {isServiceItem(selectedProduct) && (
+                <FormControl>
+                  <FormLabel>Notas del servicio</FormLabel>
+                  <Textarea value={detailDraft.note || ''} onChange={(e) => setDetailDraft({ ...detailDraft, note: e.target.value })} placeholder="Ejemplo: alcance, horarios, condiciones o detalle tecnico" />
+                </FormControl>
+              )}
               <Flex gap={4} direction={{ base: 'column', md: 'row' }}>
                 <FormControl><FormLabel>Sub total sin IGV</FormLabel><Input value={draftTaxLine.subtotal.toFixed(2)} isReadOnly /></FormControl>
                 <FormControl><FormLabel>IGV 18%</FormLabel><Input value={draftTaxLine.taxAmount.toFixed(2)} isReadOnly /></FormControl>
