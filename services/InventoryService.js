@@ -25,7 +25,7 @@ function validateDetails(details) {
   }
 
   details.forEach((item) => {
-    required(item, ['productId', 'variantId', 'quantity']);
+    required(item, ['productId', 'quantity']);
     if (Number(item.quantity) <= 0) {
       const error = new Error('La cantidad debe ser mayor que cero');
       error.status = 400;
