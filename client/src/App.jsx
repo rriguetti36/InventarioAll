@@ -6,6 +6,7 @@ import RegisterCompany from './pages/RegisterCompany'
 import CompanyAdmin from './pages/CompanyAdmin'
 import CompanyProfile from './pages/CompanyProfile'
 import Dashboard from './pages/Dashboard'
+import HelpCenter from './pages/HelpCenter'
 import CreateUser from './pages/CreateUser'
 import UserList from './pages/UserList'
 import {
@@ -55,6 +56,7 @@ export default function App(){
         <Route path="/" element={<Login/>} />
         <Route path="/register-company" element={<RegisterCompany/>} />
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard/></ProtectedRoute>} />
+        <Route path="/help" element={<ProtectedRoute><DashboardLayout><HelpCenter/></DashboardLayout></ProtectedRoute>} />
         <Route path="/users" element={<ProtectedRoute><AdminRoute><DashboardLayout><UserList/></DashboardLayout></AdminRoute></ProtectedRoute>} />
         <Route path="/users/add" element={<ProtectedRoute><AdminRoute><DashboardLayout><CreateUser/></DashboardLayout></AdminRoute></ProtectedRoute>} />
         <Route path="/company-profile" element={<ProtectedRoute><AdminRoute><DashboardLayout><CompanyProfile/></DashboardLayout></AdminRoute></ProtectedRoute>} />

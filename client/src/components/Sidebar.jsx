@@ -239,6 +239,8 @@ export default function Sidebar({ user, onLogout, isDrawer = false, onNavigate }
 
       <Divider my={4} />
 
+      <MenuLink to="/help" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Ayuda</MenuLink>
+
       {effectiveCollapsed ? (
         <IconButton
           aria-label="Expandir menu"
