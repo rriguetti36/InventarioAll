@@ -8,14 +8,20 @@ function safe(value, fallback = '-') {
   return value === undefined || value === null || value === '' ? fallback : String(value);
 }
 
+function logoBuffer(dataUrl) {
+  if (!dataUrl || !String(dataUrl).startsWith('data:image/')) return null;
+  const [, base64] = String(dataUrl).split(',');
+  if (!base64) return null;
+  try {
+    return Buffer.from(base64, 'base64');
+  } catch {
+    return null;
+  }
+}
+
 function dateText(value) {
   if (!value) return '-';
   return new Date(value).toISOString().slice(0, 10);
-}
-
-function timeText(value) {
-  const date = value ? new Date(value) : new Date();
-  return date.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 function documentTitle(type) {
@@ -86,92 +92,6 @@ function companyRuc(company = {}) {
   return safe(company.ruc, 'RUC NO CONFIGURADO');
 }
 
-function line(doc, y, x1 = 14, x2 = 212) {
-  doc.moveTo(x1, y).lineTo(x2, y).strokeColor('#111111').lineWidth(0.6).stroke();
-}
-
-function ticketText(doc, text, x, y, options = {}) {
-  doc.fillColor('#111111').font(options.bold ? 'Courier-Bold' : 'Courier').fontSize(options.size || 8).text(text, x, y, options);
-}
-
-function buildBoleta({ document, sale, details, company }) {
-  const height = Math.max(520, 390 + details.length * 42);
-  const doc = new PDFDocument({ size: [226, height], margin: 12 });
-  const chunks = [];
-
-  doc.on('data', (chunk) => chunks.push(chunk));
-
-  return new Promise((resolve, reject) => {
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
-    doc.on('error', reject);
-
-    let y = 18;
-    ticketText(doc, companyName(company), 14, y, { width: 198, align: 'center', bold: true, size: 10 });
-    y += 16;
-    ticketText(doc, `RUC: ${companyRuc(company)}`, 14, y, { width: 198, align: 'center', size: 8 });
-    y += 13;
-    ticketText(doc, safe(company.address, 'Direccion no configurada'), 14, y, { width: 198, align: 'center', size: 7 });
-    y += 22;
-    line(doc, y);
-    y += 13;
-
-    ticketText(doc, documentTitle(document.documentType), 14, y, { width: 198, align: 'center', bold: true, size: 9 });
-    y += 14;
-    ticketText(doc, safe(document.fullNumber), 14, y, { width: 198, align: 'center', bold: true, size: 9 });
-    y += 20;
-
-    ticketText(doc, `Fecha: ${dateText(document.issueDate)}`, 14, y);
-    y += 12;
-    ticketText(doc, `Hora : ${timeText(document.createdAt || document.issueDate)}`, 14, y);
-    y += 18;
-
-    ticketText(doc, `Cliente : ${safe(document.customerName, 'CLIENTE VARIOS')}`, 14, y, { width: 198 });
-    y += 12;
-    ticketText(doc, `${safe(document.customerDocumentType, 'DOC').padEnd(8, ' ')}: ${safe(document.customerDocumentNumber)}`, 14, y);
-    y += 18;
-
-    line(doc, y);
-    y += 8;
-    ticketText(doc, 'Cant  Descripcion          P.Unit   Total', 14, y, { bold: true, size: 7 });
-    y += 10;
-    line(doc, y);
-    y += 8;
-
-    details.forEach((item) => {
-      const description = safe(item.productDescription || item.variantName, '-');
-      const descriptionHeight = doc.heightOfString(description, { width: 96 });
-      ticketText(doc, money(item.quantity), 14, y, { width: 28, size: 7 });
-      ticketText(doc, description, 44, y, { width: 96, size: 7 });
-      ticketText(doc, money(item.unitPrice), 142, y, { width: 32, align: 'right', size: 7 });
-      ticketText(doc, money(item.total), 176, y, { width: 36, align: 'right', size: 7 });
-      y += Math.max(18, descriptionHeight + 8);
-    });
-
-    line(doc, y);
-    y += 12;
-    ticketText(doc, 'TOTAL A PAGAR', 14, y, { bold: true, size: 9 });
-    ticketText(doc, money(document.total), 148, y, { width: 64, align: 'right', bold: true, size: 9 });
-    y += 18;
-    line(doc, y);
-    y += 14;
-
-    ticketText(doc, `Forma de Pago: ${safe(sale.paymentMethod, 'Por definir')}`, 14, y, { width: 198 });
-    y += 22;
-    ticketText(doc, 'SON:', 14, y, { bold: true });
-    y += 12;
-    ticketText(doc, amountInWords(document.total, document.currency), 14, y, { width: 198, size: 8 });
-    y += 30;
-
-    ticketText(doc, 'Representacion impresa de la', 14, y, { width: 198, align: 'center', size: 7 });
-    y += 10;
-    ticketText(doc, 'Boleta de Venta Electronica.', 14, y, { width: 198, align: 'center', size: 7 });
-    y += 14;
-    line(doc, y);
-
-    doc.end();
-  });
-}
-
 function drawLabelValue(doc, label, value, x, y, labelWidth = 72, width = 210) {
   doc.font('Helvetica-Bold').fontSize(8).fillColor('#4A5568').text(label, x, y, { width: labelWidth });
   doc.font('Helvetica').fontSize(8).fillColor('#1A202C').text(safe(value), x + labelWidth, y, { width: width - labelWidth });
@@ -195,7 +115,7 @@ function addInvoicePageIfNeeded(doc, y) {
   return 76;
 }
 
-function buildFactura({ document, sale, details, company }) {
+function buildA4Document({ document, sale, details, company }) {
   const doc = new PDFDocument({ size: 'A4', margin: 40 });
   const chunks = [];
 
@@ -206,11 +126,22 @@ function buildFactura({ document, sale, details, company }) {
     doc.on('error', reject);
 
     doc.rect(40, 36, 330, 88).strokeColor('#CBD5E0').lineWidth(1).stroke();
-    doc.font('Helvetica-Bold').fontSize(14).fillColor('#1A202C').text(companyName(company), 52, 50, { width: 300 });
+    const logo = logoBuffer(company?.logoDataUrl);
+    if (logo) {
+      try {
+        doc.image(logo, 52, 50, { fit: [66, 52], align: 'center', valign: 'center' });
+      } catch {
+        doc.rect(52, 50, 66, 52).strokeColor('#E2E8F0').lineWidth(0.8).stroke();
+      }
+    } else {
+      doc.rect(52, 50, 66, 52).strokeColor('#E2E8F0').lineWidth(0.8).stroke();
+      doc.font('Helvetica').fontSize(7).fillColor('#718096').text('Logo', 52, 72, { width: 66, align: 'center' });
+    }
+    doc.font('Helvetica-Bold').fontSize(14).fillColor('#1A202C').text(companyName(company), 132, 50, { width: 226 });
     doc.font('Helvetica').fontSize(8).fillColor('#4A5568');
-    doc.text(`RUC: ${companyRuc(company)}`, 52, 70, { width: 300 });
-    doc.text(safe(company.address, 'Direccion no configurada'), 52, 84, { width: 300 });
-    doc.text([company.phones && `Tel: ${company.phones}`, company.email].filter(Boolean).join(' | '), 52, 106, { width: 300 });
+    doc.text(`RUC: ${companyRuc(company)}`, 132, 70, { width: 226 });
+    doc.text(safe(company.address, 'Direccion no configurada'), 132, 84, { width: 226 });
+    doc.text([company.phones && `Tel: ${company.phones}`, company.email].filter(Boolean).join(' | '), 132, 106, { width: 226 });
 
     doc.rect(392, 36, 163, 88).strokeColor('#1A365D').lineWidth(1.4).stroke();
     doc.font('Helvetica-Bold').fontSize(11).fillColor('#1A365D').text('RUC', 404, 48, { width: 139, align: 'center' });
@@ -261,7 +192,7 @@ function buildFactura({ document, sale, details, company }) {
     y += 104;
     y = addInvoicePageIfNeeded(doc, y);
     doc.font('Helvetica').fontSize(8).fillColor('#4A5568');
-    doc.text('Representacion impresa de la Factura Electronica. Documento preparado para integracion SUNAT.', 40, y, { width: 515, align: 'center' });
+    doc.text(`Representacion impresa de la ${documentTitle(document.documentType)}. Documento preparado para integracion SUNAT.`, 40, y, { width: 515, align: 'center' });
 
     doc.end();
   });
@@ -269,10 +200,7 @@ function buildFactura({ document, sale, details, company }) {
 
 class SaleDocumentPdfService {
   static build(data) {
-    if (data.document?.documentType === 'boleta') {
-      return buildBoleta(data);
-    }
-    return buildFactura(data);
+    return buildA4Document(data);
   }
 }
 
