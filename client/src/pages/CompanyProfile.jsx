@@ -52,24 +52,27 @@ function normalizeRows(rows, fallback) {
   return Array.isArray(rows) && rows.length ? rows : [fallback]
 }
 
-function loadImageFromFile(file) {
+function loadImage(source, cleanup) {
   return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file)
     const image = new window.Image()
     image.onload = () => {
-      URL.revokeObjectURL(url)
+      if (cleanup) cleanup()
       resolve(image)
     }
     image.onerror = () => {
-      URL.revokeObjectURL(url)
+      if (cleanup) cleanup()
       reject(new Error('No se pudo leer la imagen'))
     }
-    image.src = url
+    image.src = source
   })
 }
 
-async function compressLogoDataUrl(file) {
-  const image = await loadImageFromFile(file)
+function loadImageFromFile(file) {
+  const url = URL.createObjectURL(file)
+  return loadImage(url, () => URL.revokeObjectURL(url))
+}
+
+async function compressImageToLogoDataUrl(image) {
   const maxSide = 420
   const scale = Math.min(1, maxSide / Math.max(image.width, image.height))
   const width = Math.max(1, Math.round(image.width * scale))
@@ -82,6 +85,16 @@ async function compressLogoDataUrl(file) {
   context.fillRect(0, 0, width, height)
   context.drawImage(image, 0, 0, width, height)
   return canvas.toDataURL('image/jpeg', 0.78)
+}
+
+async function compressLogoDataUrl(file) {
+  return compressImageToLogoDataUrl(await loadImageFromFile(file))
+}
+
+async function compactExistingLogoDataUrl(dataUrl) {
+  if (!dataUrl || !String(dataUrl).startsWith('data:image/')) return dataUrl || ''
+  if (String(dataUrl).length < 350000) return dataUrl
+  return compressImageToLogoDataUrl(await loadImage(dataUrl))
 }
 
 export default function CompanyProfile() {
@@ -183,8 +196,10 @@ export default function CompanyProfile() {
     event.preventDefault()
     setSaving(true)
     try {
+      const logoDataUrl = await compactExistingLogoDataUrl(form.logoDataUrl)
       const payload = {
         ...form,
+        logoDataUrl,
         bankAccounts: form.bankAccounts.filter((item) => item.bankName || item.accountNumber || item.cci || item.holder),
         socialLinks: form.socialLinks.filter((item) => Object.values(item).some(Boolean)),
       }
