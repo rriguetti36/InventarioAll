@@ -28,7 +28,7 @@ const DEFAULT_PORT = parseInt(process.env.PORT, 10) || 3001;
 
 app.use(express.json({ limit: '5mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-app.use('/api/uploads/products', express.static(path.join(__dirname, 'uploads', 'products')));
+app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/inventory', inventoryRoutes);

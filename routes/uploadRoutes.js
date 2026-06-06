@@ -15,8 +15,23 @@ const mimeExtensions = {
   'image/gif': 'gif',
 };
 
-function uploadDir() {
-  return path.join(__dirname, '..', 'uploads', 'products');
+function safeFolderName(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
+function companyUploadFolder(user = {}) {
+  return safeFolderName(user.companySlug)
+    || safeFolderName(user.companyDatabase)
+    || (user.companyId ? `company-${user.companyId}` : 'master');
+}
+
+function uploadDir(user) {
+  return path.join(__dirname, '..', 'uploads', companyUploadFolder(user), 'products');
 }
 
 router.use(authMiddleware);
@@ -45,13 +60,15 @@ router.post('/product-image', requireRoles(), express.raw({ type: 'image/*', lim
       return res.status(400).json({ error: 'La imagen debe pesar menos de 2 MB' });
     }
 
-    fs.mkdirSync(uploadDir(), { recursive: true });
+    const companyFolder = companyUploadFolder(req.user);
+    const targetDir = uploadDir(req.user);
+    fs.mkdirSync(targetDir, { recursive: true });
     const filename = `${Date.now()}-${crypto.randomUUID()}.${extension}`;
-    const filepath = path.join(uploadDir(), filename);
+    const filepath = path.join(targetDir, filename);
     fs.writeFileSync(filepath, buffer);
 
     const baseUrl = `${req.protocol}://${req.get('host')}`;
-    res.status(201).json({ url: `${baseUrl}/api/uploads/products/${filename}` });
+    res.status(201).json({ url: `${baseUrl}/api/uploads/${companyFolder}/products/${filename}` });
   } catch (err) {
     next(err);
   }
