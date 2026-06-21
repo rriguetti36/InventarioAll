@@ -108,6 +108,7 @@ export default function Sidebar({ user, onLogout, isDrawer = false, onNavigate }
 
       <VStack align="stretch" spacing={effectiveCollapsed ? 2 : 4}>
         <MenuLink to="/dashboard" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Dashboard</MenuLink>
+        {canAccess(user, 'pos') && <MenuLink to="/pos" collapsed={effectiveCollapsed} onNavigate={onNavigate}>POS</MenuLink>}
 
         <Button
           variant="ghost"

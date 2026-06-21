@@ -16,7 +16,8 @@ module.exports = async function (req, res, next) {
     const secret = process.env.JWT_SECRET || 'change_this_secret';
     const payload = jwt.verify(token, secret);
     if (payload.companySlug) {
-      await CompanyService.validateCompanyAccess(payload.companySlug);
+      const company = await CompanyService.validateCompanyAccess(payload.companySlug);
+      payload.modules = company.modules || {};
     }
     req.user = payload;
     if (payload.companyDatabase) {

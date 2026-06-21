@@ -46,6 +46,34 @@ class CompanyModel {
           CONSTRAINT UQ_CompanyUsers_Company_Email UNIQUE (companyId, email)
         );
       END
+
+      IF OBJECT_ID('dbo.CompanyModules', 'U') IS NULL
+      BEGIN
+        CREATE TABLE dbo.CompanyModules (
+          id INT IDENTITY(1,1) PRIMARY KEY,
+          companyId INT NOT NULL,
+          moduleCode NVARCHAR(40) NOT NULL,
+          enabled BIT NOT NULL DEFAULT 1,
+          planCode NVARCHAR(80) NULL,
+          startsAt DATETIME2 NULL,
+          expiresAt DATETIME2 NULL,
+          createdAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+          updatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+          CONSTRAINT FK_CompanyModules_Companies FOREIGN KEY (companyId) REFERENCES dbo.Companies(id),
+          CONSTRAINT CK_CompanyModules_Code CHECK (moduleCode IN ('inventory', 'pos')),
+          CONSTRAINT UQ_CompanyModules_Company_Module UNIQUE (companyId, moduleCode)
+        );
+      END
+
+      INSERT INTO dbo.CompanyModules (companyId, moduleCode, enabled)
+      SELECT c.id, m.moduleCode, 1
+      FROM dbo.Companies c
+      CROSS JOIN (VALUES ('inventory'), ('pos')) AS m(moduleCode)
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM dbo.CompanyModules cm
+        WHERE cm.companyId = c.id AND cm.moduleCode = m.moduleCode
+      );
     `);
   }
 
@@ -89,6 +117,44 @@ class CompanyModel {
     return result.recordset;
   }
 
+  static async getModules(companyId) {
+    const pool = await getMasterPool();
+    const result = await pool.request()
+      .input('companyId', sql.Int, companyId)
+      .query(`
+        SELECT moduleCode, enabled, planCode, startsAt, expiresAt
+        FROM dbo.CompanyModules
+        WHERE companyId = @companyId
+        ORDER BY moduleCode
+      `);
+    return result.recordset;
+  }
+
+  static async setModules(companyId, modules = {}, planCode = null) {
+    const pool = await getMasterPool();
+    const normalized = {
+      inventory: Boolean(modules.inventory),
+      pos: Boolean(modules.pos),
+    };
+    for (const [moduleCode, enabled] of Object.entries(normalized)) {
+      await pool.request()
+        .input('companyId', sql.Int, companyId)
+        .input('moduleCode', sql.NVarChar(40), moduleCode)
+        .input('enabled', sql.Bit, enabled ? 1 : 0)
+        .input('planCode', sql.NVarChar(80), planCode || null)
+        .query(`
+          MERGE dbo.CompanyModules AS target
+          USING (SELECT @companyId AS companyId, @moduleCode AS moduleCode) AS source
+          ON target.companyId = source.companyId AND target.moduleCode = source.moduleCode
+          WHEN MATCHED THEN
+            UPDATE SET enabled = @enabled, planCode = @planCode, updatedAt = SYSUTCDATETIME()
+          WHEN NOT MATCHED THEN
+            INSERT (companyId, moduleCode, enabled, planCode)
+            VALUES (@companyId, @moduleCode, @enabled, @planCode);
+        `);
+    }
+  }
+
   static async linkUser(companyId, email) {
     const pool = await getMasterPool();
     const normalizedEmail = String(email || '').trim().toLowerCase();
@@ -125,10 +191,11 @@ class CompanyModel {
       .input('name', sql.NVarChar(150), company.name)
       .input('slug', sql.NVarChar(80), company.slug)
       .input('databaseName', sql.NVarChar(128), company.databaseName)
+      .input('planName', sql.NVarChar(80), company.planName || null)
       .query(`
-        INSERT INTO dbo.Companies (name, slug, databaseName)
+        INSERT INTO dbo.Companies (name, slug, databaseName, planName)
         OUTPUT INSERTED.*
-        VALUES (@name, @slug, @databaseName)
+        VALUES (@name, @slug, @databaseName, @planName)
       `);
     return result.recordset[0];
   }

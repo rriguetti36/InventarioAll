@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Link as RouterLink, useNavigate } from 'react-router-dom'
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import {
   Alert,
@@ -37,7 +37,18 @@ const features = [
   },
 ]
 
+const planLabels = {
+  pos: 'POS',
+  inventory: 'Inventarios',
+  inventario: 'Inventarios',
+  inventarios: 'Inventarios',
+  invenpos: 'POS + Inventarios',
+}
+
 export default function RegisterCompany(){
+  const location = useLocation()
+  const params = new URLSearchParams(location.search)
+  const selectedPlan = (params.get('plan') || params.get('product') || 'invenpos').toLowerCase()
   const [form, setForm] = useState({
     companyName: '',
     slug: '',
@@ -61,6 +72,7 @@ export default function RegisterCompany(){
       const payload = {
         ...form,
         slug: form.slug.trim() || form.companyName,
+        plan: selectedPlan,
       }
       const res = await api.post('/auth/register-company', payload)
       navigate('/', { state: { companySlug: res.data.slug } })
@@ -131,6 +143,7 @@ export default function RegisterCompany(){
             <Box mb={8}>
               <Heading size="lg" color="gray.800">Registrar empresa</Heading>
               <Text mt={2} color="gray.600">Configura el acceso inicial de tu compania.</Text>
+              <Badge mt={3} colorScheme="purple">{planLabels[selectedPlan] || 'POS + Inventarios'}</Badge>
             </Box>
 
             <form onSubmit={handleSubmit}>

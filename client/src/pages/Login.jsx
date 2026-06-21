@@ -41,6 +41,7 @@ export default function Login(){
         companyId: data.companyId || null,
         companyName: data.companyName || null,
         companySlug: data.companySlug || null,
+        modules: data.modules || {},
       }))
       navigate('/dashboard')
     }catch(err){

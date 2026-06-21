@@ -10,6 +10,7 @@ import {
   IconButton,
   Input,
   Select,
+  Switch,
   Table,
   Tbody,
   Td,
@@ -46,6 +47,13 @@ const paymentOptions = [
   { value: 'vencido', label: 'Vencido' },
   { value: 'exonerado', label: 'Exonerado' },
 ]
+
+function moduleBadges(modules = {}) {
+  const items = []
+  if (modules.inventory) items.push({ label: 'Inventarios', color: 'blue' })
+  if (modules.pos) items.push({ label: 'POS', color: 'purple' })
+  return items
+}
 
 function formatDate(value) {
   if (!value) return '-'
@@ -104,6 +112,10 @@ export default function CompanyAdmin() {
       ...company,
       licenseExpiresAt: toDateInput(company.licenseExpiresAt),
       estado: Boolean(company.estado),
+      modules: {
+        inventory: Boolean(company.modules?.inventory),
+        pos: Boolean(company.modules?.pos),
+      },
     })
     modal.onOpen()
   }
@@ -123,6 +135,7 @@ export default function CompanyAdmin() {
         paymentStatus: editing.paymentStatus,
         notes: editing.notes,
         estado: editing.estado,
+        modules: editing.modules,
       }
       await api.put(`/companies/${editing.id}`, payload)
       await loadCompanies()
@@ -157,6 +170,7 @@ export default function CompanyAdmin() {
               <Th>Compania</Th>
               <Th>Codigo</Th>
               <Th>Plan</Th>
+              <Th>Productos</Th>
               <Th>Licencia</Th>
               <Th>Pago</Th>
               <Th>Vence</Th>
@@ -170,6 +184,13 @@ export default function CompanyAdmin() {
                 <Td fontWeight="semibold">{company.name}</Td>
                 <Td>{company.slug}</Td>
                 <Td>{company.planName || '-'}</Td>
+                <Td>
+                  <HStack spacing={1} flexWrap="wrap">
+                    {moduleBadges(company.modules).length ? moduleBadges(company.modules).map((item) => (
+                      <Badge key={item.label} colorScheme={item.color}>{item.label}</Badge>
+                    )) : <Badge colorScheme="gray">Sin modulos</Badge>}
+                  </HStack>
+                </Td>
                 <Td><Badge colorScheme={licenseColor(company.licenseStatus)}>{company.licenseStatus}</Badge></Td>
                 <Td><Badge colorScheme={paymentColor(company.paymentStatus)}>{company.paymentStatus}</Badge></Td>
                 <Td>{formatDate(company.licenseExpiresAt)}</Td>
@@ -205,6 +226,25 @@ export default function CompanyAdmin() {
                   <FormLabel>Plan</FormLabel>
                   <Input value={editing.planName || ''} onChange={(e) => updateField('planName', e.target.value)} placeholder="Basico, Pro, Enterprise" />
                 </FormControl>
+                <Box borderWidth="1px" borderRadius="md" p={4}>
+                  <FormLabel mb={3}>Productos contratados</FormLabel>
+                  <HStack spacing={8} align="center">
+                    <HStack>
+                      <Switch
+                        isChecked={Boolean(editing.modules?.inventory)}
+                        onChange={(e) => updateField('modules', { ...editing.modules, inventory: e.target.checked })}
+                      />
+                      <Text>Inventarios</Text>
+                    </HStack>
+                    <HStack>
+                      <Switch
+                        isChecked={Boolean(editing.modules?.pos)}
+                        onChange={(e) => updateField('modules', { ...editing.modules, pos: e.target.checked })}
+                      />
+                      <Text>POS</Text>
+                    </HStack>
+                  </HStack>
+                </Box>
                 <HStack align="start">
                   <FormControl>
                     <FormLabel>Licencia</FormLabel>

@@ -7,6 +7,7 @@ const CompanyService = require('./services/CompanyService');
 const userRoutes = require('./routes/userRoutes');
 const authRoutes = require('./routes/authRoutes');
 const inventoryRoutes = require('./routes/inventoryRoutes');
+const posRoutes = require('./routes/posRoutes');
 const companyRoutes = require('./routes/companyRoutes');
 const companyProfileRoutes = require('./routes/companyProfileRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
@@ -14,16 +15,27 @@ const path = require('path');
 
 // Ejecutar migraciones
 migrateAddRoleColumn();
-CompanyService.ensureMasterSchema().catch((err) => {
-  console.error('Error preparando esquema maestro de empresas:', err);
-});
-CompanyService.syncCompanyUserIndex().catch((err) => {
-  console.error('Error sincronizando usuarios de companias:', err);
-});
+CompanyService.ensureMasterSchema()
+  .then(() => CompanyService.syncCompanyUserIndex())
+  .catch((err) => {
+    console.error('Error preparando empresas:', err);
+  });
 
 const app = express();
-const allowedOrigin = process.env.CLIENT_ORIGIN || /http:\/\/localhost:\d+/;
-app.use(cors({ origin: allowedOrigin, credentials: true }));
+const configuredOrigins = (process.env.CLIENT_ORIGIN || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const localhostOrigin = /^http:\/\/(localhost|127\.0\.0\.1):\d+$/;
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || localhostOrigin.test(origin) || configuredOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Origen no permitido por CORS'));
+  },
+  credentials: true,
+}));
 const DEFAULT_PORT = parseInt(process.env.PORT, 10) || 3001;
 
 app.use(express.json({ limit: '5mb' }));
@@ -32,6 +44,7 @@ app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/inventory', inventoryRoutes);
+app.use('/api/pos', posRoutes);
 app.use('/api/companies', companyRoutes);
 app.use('/api/company-profile', companyProfileRoutes);
 app.use('/api/uploads', uploadRoutes);

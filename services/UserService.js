@@ -163,6 +163,7 @@ class UserService {
       companyName: company.name,
       companySlug: company.slug,
       companyDatabase: company.databaseName,
+      modules: company.modules || {},
     } : {};
     const payload = {
       id: user.id,
@@ -183,6 +184,7 @@ class UserService {
       companyId: company?.id || null,
       companyName: company?.name || null,
       companySlug: company?.slug || null,
+      modules: company?.modules || {},
       token,
     };
   }

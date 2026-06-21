@@ -35,6 +35,33 @@ function splitBatches(script) {
     .filter(Boolean);
 }
 
+function modulesFromPlan(value, fallback = { inventory: true, pos: true }) {
+  const plan = String(value || '').trim().toLowerCase();
+  if (['pos', 'solo-pos', 'pos-only'].includes(plan)) return { inventory: false, pos: true };
+  if (['inventory', 'inventario', 'inventarios', 'solo-inventario', 'inventory-only'].includes(plan)) return { inventory: true, pos: false };
+  if (['invenpos', 'bundle', 'full', 'todo', 'pos-inventory', 'inventory-pos'].includes(plan)) return { inventory: true, pos: true };
+  return fallback;
+}
+
+function normalizeModules(data = {}, fallback = { inventory: true, pos: true }) {
+  if (data.modules && typeof data.modules === 'object') {
+    return {
+      inventory: Boolean(data.modules.inventory),
+      pos: Boolean(data.modules.pos),
+    };
+  }
+  return modulesFromPlan(data.planCode || data.plan || data.product || data.planName, fallback);
+}
+
+function modulesToFlags(rows = []) {
+  const flags = { inventory: false, pos: false, posInventorySync: false };
+  rows.forEach((row) => {
+    flags[row.moduleCode] = Boolean(row.enabled);
+  });
+  flags.posInventorySync = flags.inventory && flags.pos;
+  return flags;
+}
+
 async function executeBatches(databaseName, script) {
   const pool = await getPool(databaseName);
   for (const batch of splitBatches(script)) {
@@ -65,7 +92,11 @@ class CompanyService {
 
   static async getAllCompanies() {
     await CompanyModel.ensureSchema();
-    return CompanyModel.getAll();
+    const companies = await CompanyModel.getAll();
+    return Promise.all(companies.map(async (company) => ({
+      ...company,
+      modules: modulesToFlags(await CompanyModel.getModules(company.id)),
+    })));
   }
 
   static async getCompanyBySlug(slug) {
@@ -112,7 +143,10 @@ class CompanyService {
       throw error;
     }
 
-    return company;
+    return {
+      ...company,
+      modules: modulesToFlags(await CompanyModel.getModules(company.id)),
+    };
   }
 
   static async updateCompany(id, data) {
@@ -141,7 +175,8 @@ class CompanyService {
       throw error;
     }
 
-    return CompanyModel.update(id, {
+    const modules = normalizeModules(data, modulesToFlags(await CompanyModel.getModules(id)));
+    const updated = await CompanyModel.update(id, {
       name: data.name || existing.name,
       planName: data.planName ?? existing.planName,
       licenseStatus,
@@ -150,6 +185,11 @@ class CompanyService {
       notes: data.notes ?? existing.notes,
       estado: data.estado ?? existing.estado,
     });
+    await CompanyModel.setModules(id, modules, data.planName ?? existing.planName);
+    return {
+      ...updated,
+      modules: modulesToFlags(await CompanyModel.getModules(id)),
+    };
   }
 
   static async registerCompany(data) {
@@ -158,6 +198,8 @@ class CompanyService {
     const adminEmail = String(data.adminEmail || data.email || '').trim().toLowerCase();
     const adminPassword = data.adminPassword || data.password;
     const slug = slugify(data.slug || name);
+    const modules = normalizeModules(data, { inventory: true, pos: true });
+    const planName = data.planName || data.planCode || data.plan || (modules.inventory && modules.pos ? 'invenpos' : modules.pos ? 'pos' : 'inventory');
 
     if (!name || !slug || !adminName || !adminEmail || !adminPassword) {
       const error = new Error('Empresa, slug, adminName, adminEmail y adminPassword son obligatorios');
@@ -204,8 +246,11 @@ class CompanyService {
 
     const inventorySchema = fs.readFileSync(path.join(__dirname, '..', 'db', 'schemaInv.sql'), 'utf8');
     await executeBatches(databaseName, inventorySchema);
+    const posSchema = fs.readFileSync(path.join(__dirname, '..', 'db', 'schemaPos.sql'), 'utf8');
+    await executeBatches(databaseName, posSchema);
 
-    const company = await CompanyModel.create({ name, slug, databaseName });
+    const company = await CompanyModel.create({ name, slug, databaseName, planName });
+    await CompanyModel.setModules(company.id, modules, planName);
     const hashedPassword = await bcrypt.hash(adminPassword, 10);
     await runWithDatabase(databaseName, async () => {
       await UserModel.create({
@@ -219,7 +264,11 @@ class CompanyService {
     });
     await CompanyModel.linkUser(company.id, adminEmail);
 
-    return company;
+    return {
+      ...company,
+      planName,
+      modules: modulesToFlags(await CompanyModel.getModules(company.id)),
+    };
   }
 }
 

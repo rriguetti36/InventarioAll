@@ -7,6 +7,7 @@ import CompanyAdmin from './pages/CompanyAdmin'
 import CompanyProfile from './pages/CompanyProfile'
 import Dashboard from './pages/Dashboard'
 import HelpCenter from './pages/HelpCenter'
+import Pos from './pages/Pos'
 import CreateUser from './pages/CreateUser'
 import UserList from './pages/UserList'
 import {
@@ -61,6 +62,7 @@ export default function App(){
         <Route path="/users/add" element={<ProtectedRoute><AdminRoute><DashboardLayout><CreateUser/></DashboardLayout></AdminRoute></ProtectedRoute>} />
         <Route path="/company-profile" element={<ProtectedRoute><AdminRoute><DashboardLayout><CompanyProfile/></DashboardLayout></AdminRoute></ProtectedRoute>} />
         <Route path="/companies" element={<ProtectedRoute><PlatformAdminRoute><DashboardLayout><CompanyAdmin/></DashboardLayout></PlatformAdminRoute></ProtectedRoute>} />
+        <Route path="/pos" element={<ProtectedRoute><RoleRoute section="pos"><DashboardLayout><Pos/></DashboardLayout></RoleRoute></ProtectedRoute>} />
         <Route path="/inventory/products" element={<ProtectedRoute><RoleRoute section="products"><DashboardLayout><ProductList/></DashboardLayout></RoleRoute></ProtectedRoute>} />
         <Route path="/inventory/products/add" element={<ProtectedRoute><RoleRoute section="products"><DashboardLayout><ProductForm/></DashboardLayout></RoleRoute></ProtectedRoute>} />
         <Route path="/inventory/products/edit/:id" element={<ProtectedRoute><RoleRoute section="products"><DashboardLayout><ProductForm/></DashboardLayout></RoleRoute></ProtectedRoute>} />

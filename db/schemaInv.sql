@@ -1,7 +1,10 @@
 -- Schema de inventario para SQL Server.
 -- Ejecutar sobre la misma base configurada para el proyecto.
 
-USE BD_TEST_IA;
+SET ANSI_NULLS ON;
+GO
+
+SET QUOTED_IDENTIFIER ON;
 GO
 
 IF OBJECT_ID('dbo.Users', 'U') IS NOT NULL AND COL_LENGTH('dbo.Users', 'assignedLocationId') IS NULL
@@ -492,6 +495,9 @@ BEGIN
     subtotal DECIMAL(18,2) NOT NULL DEFAULT 0,
     taxTotal DECIMAL(18,2) NOT NULL DEFAULT 0,
     total DECIMAL(18,2) NOT NULL DEFAULT 0,
+    sourceModule NVARCHAR(30) NULL,
+    sourceId INT NULL,
+    sourceReference NVARCHAR(80) NULL,
     createdAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT FK_Sales_Locations FOREIGN KEY (locationId) REFERENCES dbo.InventoryLocations(id),
     CONSTRAINT FK_Sales_Shelves FOREIGN KEY (shelfId) REFERENCES dbo.Shelves(id),
@@ -515,6 +521,20 @@ GO
 IF COL_LENGTH('dbo.SaleHeaders', 'subtotal') IS NULL ALTER TABLE dbo.SaleHeaders ADD subtotal DECIMAL(18,2) NOT NULL CONSTRAINT DF_SaleHeaders_Subtotal DEFAULT 0;
 GO
 IF COL_LENGTH('dbo.SaleHeaders', 'taxTotal') IS NULL ALTER TABLE dbo.SaleHeaders ADD taxTotal DECIMAL(18,2) NOT NULL CONSTRAINT DF_SaleHeaders_TaxTotal DEFAULT 0;
+GO
+IF COL_LENGTH('dbo.SaleHeaders', 'sourceModule') IS NULL ALTER TABLE dbo.SaleHeaders ADD sourceModule NVARCHAR(30) NULL;
+GO
+IF COL_LENGTH('dbo.SaleHeaders', 'sourceId') IS NULL ALTER TABLE dbo.SaleHeaders ADD sourceId INT NULL;
+GO
+IF COL_LENGTH('dbo.SaleHeaders', 'sourceReference') IS NULL ALTER TABLE dbo.SaleHeaders ADD sourceReference NVARCHAR(80) NULL;
+GO
+IF NOT EXISTS (
+  SELECT 1 FROM sys.indexes WHERE name = 'UX_SaleHeaders_Source' AND object_id = OBJECT_ID('dbo.SaleHeaders')
+)
+BEGIN
+  CREATE UNIQUE INDEX UX_SaleHeaders_Source ON dbo.SaleHeaders(sourceModule, sourceId)
+  WHERE sourceModule IS NOT NULL AND sourceId IS NOT NULL;
+END
 GO
 ALTER TABLE dbo.SaleHeaders ALTER COLUMN locationId INT NULL;
 GO

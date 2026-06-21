@@ -2,10 +2,12 @@ const express = require('express');
 const InventoryController = require('../controllers/InventoryController');
 const authMiddleware = require('../middleware/authMiddleware');
 const { requireRoles } = require('../middleware/roleAccess');
+const { requireModule } = require('../middleware/moduleAccess');
 
 const router = express.Router();
 
 router.use(authMiddleware);
+router.use(requireModule('inventory'));
 
 const CATALOG_PRODUCTS = ['administrativo', 'operativo'];
 const CATALOG_SUPPLIERS = ['administrativo', 'operativo'];
