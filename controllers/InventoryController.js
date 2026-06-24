@@ -105,6 +105,7 @@ class InventoryController {
 
   static listStock = controller((req) => InventoryService.listStock(req.user));
   static moveStockShelf = controller((req) => InventoryService.moveStockShelf(parseInt(req.params.id, 10), req.body, req.user));
+  static adjustStock = controller((req) => InventoryService.adjustStock(req.body, req.user));
   static listPurchases = controller(() => InventoryService.listPurchases());
   static createPurchase = controller((req) => InventoryService.createPurchase(req.body));
   static listTransfers = controller(() => InventoryService.listTransfers());

@@ -30,7 +30,7 @@ import {
 import { AddIcon, EditIcon, DeleteIcon, UnlockIcon } from '@chakra-ui/icons'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
-import { roleLabels, roleOptions, storeScopedRoles } from '../utils/access'
+import { roleLabels, roleOptionsForAppMode, storeScopedRoles } from '../utils/access'
 import ConfirmDialog from '../components/ConfirmDialog'
 
 export default function UserList() {
@@ -49,6 +49,10 @@ export default function UserList() {
   const [editData, setEditData] = useState({ name: '', email: '', role: 'user', assignedLocationId: '', estado: 1 })
   const toast = useToast()
   const navigate = useNavigate()
+  const availableRoleOptions = roleOptionsForAppMode()
+  const editRoleOptions = availableRoleOptions.some((role) => role.value === editData.role) || !editData.role
+    ? availableRoleOptions
+    : [{ value: editData.role, label: roleLabels[editData.role] || editData.role }, ...availableRoleOptions]
 
   useEffect(() => {
     loadUsers()
@@ -288,7 +292,7 @@ export default function UserList() {
                   role: e.target.value,
                   assignedLocationId: storeScopedRoles.includes(e.target.value) ? editData.assignedLocationId : '',
                 })}>
-                  {roleOptions.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
+                  {editRoleOptions.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
                 </Select>
               </FormControl>
               {storeScopedRoles.includes(editData.role) && (

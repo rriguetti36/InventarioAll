@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom'
 import api from '../services/api'
+import { modulesForAppMode, planForAppMode } from '../utils/access'
 import {
   Alert,
   Badge,
@@ -43,12 +44,18 @@ const planLabels = {
   inventario: 'Inventarios',
   inventarios: 'Inventarios',
   invenpos: 'POS + Inventarios',
+  inventpos: 'POS + Inventarios',
 }
 
 export default function RegisterCompany(){
   const location = useLocation()
   const params = new URLSearchParams(location.search)
-  const selectedPlan = (params.get('plan') || params.get('product') || 'invenpos').toLowerCase()
+  const host = typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : ''
+  const queryPlan = (params.get('plan') || params.get('product') || '').toLowerCase()
+  const selectedPlan = (host === 'localhost' || host === '127.0.0.1')
+    ? (queryPlan || planForAppMode())
+    : planForAppMode()
+  const selectedModules = modulesForAppMode()
   const [form, setForm] = useState({
     companyName: '',
     slug: '',
@@ -73,6 +80,9 @@ export default function RegisterCompany(){
         ...form,
         slug: form.slug.trim() || form.companyName,
         plan: selectedPlan,
+        planName: selectedPlan,
+        modules: selectedModules,
+        sourceHost: host,
       }
       const res = await api.post('/auth/register-company', payload)
       navigate('/', { state: { companySlug: res.data.slug } })

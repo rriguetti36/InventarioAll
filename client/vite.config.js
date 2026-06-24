@@ -4,6 +4,12 @@ module.exports = defineConfig({
   server: {
     port: 5173,
     strictPort: false,
+    allowedHosts: [
+      'inventarios.local',
+      'pos.local',
+      'inventpos.local',
+      'invenpos.local',
+    ],
   },
   plugins: [
     {

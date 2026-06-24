@@ -14,14 +14,15 @@ import {
 import { ArrowBackIcon } from '@chakra-ui/icons'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
-import { roleOptions, storeScopedRoles } from '../utils/access'
+import { appMode, roleOptionsForAppMode, storeScopedRoles } from '../utils/access'
 
 export default function CreateUser() {
+  const availableRoleOptions = roleOptionsForAppMode()
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
-    role: 'user',
+    role: appMode === 'pos' ? 'admin_tienda' : 'user',
     assignedLocationId: '',
     estado: 1,
   })
@@ -86,7 +87,7 @@ export default function CreateUser() {
             <FormControl>
               <FormLabel>Rol</FormLabel>
               <Select name="role" value={formData.role} onChange={handleChange}>
-                {roleOptions.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
+                {availableRoleOptions.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
               </Select>
             </FormControl>
             {storeScopedRoles.includes(formData.role) && (

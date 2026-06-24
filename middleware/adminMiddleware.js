@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { runWithDatabase } = require('../config/tenantContext');
+const { isPosStoreAdmin } = require('./roleAccess');
 
 function adminMiddleware(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
@@ -12,7 +13,7 @@ function adminMiddleware(req, res, next) {
     const secret = process.env.JWT_SECRET || 'change_this_secret';
     const decoded = jwt.verify(token, secret);
     
-    if (decoded.role !== 'admin') {
+    if (decoded.role !== 'admin' && !isPosStoreAdmin(decoded)) {
       return res.status(403).json({ error: 'Acceso denegado: se requieren permisos de administrador' });
     }
 

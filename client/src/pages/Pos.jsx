@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import {
   Box,
+  Badge,
   Button,
   Flex,
   FormControl,
   FormLabel,
   Heading,
   IconButton,
+  Image,
   Input,
   Modal,
   ModalBody,
@@ -26,11 +28,10 @@ import {
   Text,
   Th,
   Thead,
-  Tooltip,
   Tr,
   useToast,
 } from '@chakra-ui/react'
-import { AddIcon, CheckIcon, DeleteIcon, RepeatIcon } from '@chakra-ui/icons'
+import { CheckIcon, DeleteIcon, RepeatIcon } from '@chakra-ui/icons'
 import api from '../services/api'
 
 function formatMoney(value) {
@@ -104,6 +105,23 @@ function storedUser() {
   } catch {
     return {}
   }
+}
+
+function variantOptionLabel(item) {
+  const displayName = String(item.displayName || '').trim()
+  const productName = String(item.name || '').trim()
+  const model = String(item.model || '').trim()
+  let label = displayName
+
+  if (label && productName && label.toLowerCase().startsWith(productName.toLowerCase())) {
+    label = label.slice(productName.length).replace(/^[-\s|:]+/, '').trim()
+  }
+
+  if (label && model && label.toLowerCase().startsWith(model.toLowerCase())) {
+    label = label.slice(model.length).replace(/^[-\s|:]+/, '').trim()
+  }
+
+  return label || 'Opcion unica'
 }
 
 function buildTicketText(ticket) {
@@ -253,6 +271,7 @@ export default function Pos() {
   const [salesSummary, setSalesSummary] = useState({ totals: { saleCount: 0, total: 0 }, terminals: [] })
   const [search, setSearch] = useState('')
   const [cart, setCart] = useState([])
+  const [variantProduct, setVariantProduct] = useState(null)
   const [selected, setSelected] = useState({
     terminalId: '',
     openingCash: 0,
@@ -304,6 +323,35 @@ export default function Pos() {
       item.model,
     ].some((value) => String(value || '').toLowerCase().includes(q))).slice(0, 30)
   }, [items, search])
+
+  const galleryProducts = useMemo(() => {
+    const source = search.trim() ? filteredItems : items
+    const groups = new Map()
+    source.forEach((item) => {
+      const key = String(item.productId)
+      const current = groups.get(key)
+      if (current) {
+        current.variants.push(item)
+        current.stock += Number(item.stock || 0)
+        current.minPrice = Math.min(current.minPrice, Number(item.salePrice || 0))
+        current.maxPrice = Math.max(current.maxPrice, Number(item.salePrice || 0))
+        if (!current.imageUrl && item.imageUrl) current.imageUrl = item.imageUrl
+        return
+      }
+      groups.set(key, {
+        productId: item.productId,
+        productSku: item.productSku,
+        name: item.name,
+        model: item.model,
+        imageUrl: item.imageUrl,
+        stock: Number(item.stock || 0),
+        minPrice: Number(item.salePrice || 0),
+        maxPrice: Number(item.salePrice || 0),
+        variants: [item],
+      })
+    })
+    return [...groups.values()].slice(0, 80)
+  }, [filteredItems, items, search])
 
   const findExactItem = (value) => {
     const normalized = String(value || '').trim().toLowerCase()
@@ -375,6 +423,20 @@ export default function Pos() {
   const addItemAndClearSearch = (item) => {
     addItem(item)
     setSearch('')
+  }
+
+  const selectGalleryProduct = (product) => {
+    if (!product?.variants?.length) return
+    if (product.variants.length === 1) {
+      addItemAndClearSearch(product.variants[0])
+      return
+    }
+    setVariantProduct(product)
+  }
+
+  const addVariantFromModal = (item) => {
+    addItemAndClearSearch(item)
+    setVariantProduct(null)
   }
 
   const handleSearchChange = (value) => {
@@ -676,203 +738,333 @@ export default function Pos() {
           </Button>
         </SectionCard>
       ) : (
-        <SimpleGrid columns={{ base: 1, xl: 'minmax(320px, 0.9fr) minmax(560px, 2.1fr)' }} spacing={4} alignItems="start">
-          <SectionCard title="Productos" accent="teal">
-            <Box position="relative">
-              <Input
-                value={search}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                onKeyDown={handleSearchKeyDown}
-                placeholder="Escanea codigo de barra o busca producto"
-                autoFocus
-              />
-              {search.trim() && (
-                <Box borderWidth="1px" borderColor="teal.200" borderRadius="md" mt={2} maxH="260px" overflowY="auto" bg="white" boxShadow="md">
-                  {filteredItems.length ? filteredItems.map((item) => (
-                    <Flex
-                      key={`${item.productId}-${item.variantId || 'base'}`}
-                      p={3}
-                      justify="space-between"
-                      align="center"
-                      gap={3}
-                      cursor="pointer"
-                      borderBottomWidth="1px"
-                      borderBottomColor="gray.100"
-                      bg={Number(item.stock || 0) > 0 ? 'white' : 'red.50'}
-                      opacity={Number(item.stock || 0) > 0 ? 1 : 0.7}
-                      _hover={{ bg: Number(item.stock || 0) > 0 ? 'teal.50' : 'red.100' }}
-                      onClick={() => addItemAndClearSearch(item)}
-                    >
-                      <Box minW={0}>
-                        <Text fontWeight="semibold" noOfLines={1}>{item.displayName || item.name}</Text>
-                        <Text fontSize="sm" color="gray.600">SKU {item.variantSku || item.productSku} | Stock {Number(item.stock || 0)} | S/ {formatMoney(item.salePrice)}</Text>
+        <>
+          <Box
+            display="grid"
+            gridTemplateColumns={{ base: '1fr', xl: 'minmax(0, 1fr) 420px' }}
+            gap={4}
+            alignItems="start"
+          >
+            <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" overflow="hidden" boxShadow="sm">
+              <Flex
+                px={4}
+                py={3}
+                gap={3}
+                align={{ base: 'stretch', md: 'center' }}
+                direction={{ base: 'column', md: 'row' }}
+                bg="teal.50"
+                borderBottomWidth="1px"
+                borderColor="teal.200"
+              >
+                <Box flex="1">
+                  <Input
+                    value={search}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    onKeyDown={handleSearchKeyDown}
+                    placeholder="Escanea codigo de barra o busca producto"
+                    bg="white"
+                    h="48px"
+                    fontSize="md"
+                    autoFocus
+                  />
+                </Box>
+                <Flex gap={2} wrap="wrap">
+                  <Badge colorScheme="teal" px={3} py={2} borderRadius="md">{galleryProducts.length} visibles</Badge>
+                  <Badge colorScheme="green" px={3} py={2} borderRadius="md">{cart.length} en carrito</Badge>
+                </Flex>
+              </Flex>
+
+              <Box p={4} maxH={{ base: 'none', xl: 'calc(100vh - 230px)' }} overflowY={{ base: 'visible', xl: 'auto' }}>
+                {galleryProducts.length ? (
+                  <SimpleGrid columns={{ base: 2, md: 3, lg: 4, '2xl': 5 }} spacing={3}>
+                    {galleryProducts.map((product) => {
+                      const hasVariants = product.variants.length > 1
+                      const firstItem = product.variants[0]
+                      const outOfStock = Number(product.stock || 0) <= 0
+                      const title = product.name
+                      const priceLabel = product.minPrice === product.maxPrice
+                        ? `S/ ${formatMoney(product.minPrice)}`
+                        : `S/ ${formatMoney(product.minPrice)} - ${formatMoney(product.maxPrice)}`
+                      return (
+                        <Box
+                          key={product.productId}
+                          borderWidth="1px"
+                          borderColor={outOfStock ? 'red.200' : 'gray.200'}
+                          borderRadius="md"
+                          bg={outOfStock ? 'red.50' : 'white'}
+                          overflow="hidden"
+                          cursor="pointer"
+                          opacity={outOfStock ? 0.72 : 1}
+                          _hover={{ borderColor: outOfStock ? 'red.300' : 'teal.400', boxShadow: 'md', transform: 'translateY(-1px)' }}
+                          transition="all 0.15s ease"
+                          onClick={() => selectGalleryProduct(product)}
+                        >
+                          <Box h={{ base: '150px', md: '184px' }} bg="gray.100" display="grid" placeItems="center" position="relative">
+                            {product.imageUrl ? (
+                              <Image src={product.imageUrl} alt={title} w="100%" h="100%" objectFit="cover" />
+                            ) : (
+                              <Text fontSize="3xl" fontWeight="bold" color="gray.400">
+                                {String(title || 'P').slice(0, 1).toUpperCase()}
+                              </Text>
+                            )}
+                            {outOfStock && (
+                              <Badge position="absolute" top={2} right={2} colorScheme="red">Sin stock</Badge>
+                            )}
+                            {hasVariants && (
+                              <Badge position="absolute" bottom={2} left={2} colorScheme="teal">{product.variants.length} opciones</Badge>
+                            )}
+                            <Box position="absolute" left={0} right={0} bottom={0} bg="blackAlpha.700" color="white" px={3} py={2}>
+                              <Flex justify="space-between" align="center" gap={2}>
+                                <Text fontSize="sm" fontWeight="bold" noOfLines={1}>{title}</Text>
+                                <Text fontWeight="bold" flexShrink={0}>{priceLabel}</Text>
+                              </Flex>
+                            </Box>
+                          </Box>
+                        </Box>
+                      )
+                    })}
+                  </SimpleGrid>
+                ) : (
+                  <Box borderWidth="1px" borderStyle="dashed" borderColor="gray.300" borderRadius="md" p={8} textAlign="center">
+                    <Text color="gray.500">Sin coincidencias</Text>
+                  </Box>
+                )}
+              </Box>
+            </Box>
+
+            <Box
+              bg="white"
+              borderWidth="1px"
+              borderColor="blue.200"
+              borderRadius="md"
+              boxShadow="md"
+              position={{ base: 'static', xl: 'sticky' }}
+              top={{ xl: 4 }}
+              maxH={{ base: 'none', xl: 'calc(100vh - 115px)' }}
+              display="flex"
+              flexDirection="column"
+              overflow="hidden"
+            >
+              <Box bg="blue.50" borderBottomWidth="1px" borderColor="blue.200" px={4} py={3}>
+                <Flex justify="space-between" align="center" gap={3}>
+                  <Box>
+                    <Heading size="md" color="blue.900">Venta actual</Heading>
+                    <Text fontSize="sm" color="blue.700">{openShift.terminalName || 'Terminal'} | {openShift.locationName || ''}</Text>
+                  </Box>
+                  <Badge colorScheme="blue" px={3} py={1} borderRadius="md">{cart.length}</Badge>
+                </Flex>
+              </Box>
+
+              <Box flex="1" overflowY="auto" p={4}>
+                {cart.length ? (
+                  <Flex direction="column" gap={3}>
+                    {cart.map((item) => (
+                      <Box key={item.key} borderWidth="1px" borderColor="gray.200" borderRadius="md" p={3}>
+                        <Flex justify="space-between" align="start" gap={2}>
+                          <Box minW={0}>
+                            <Text fontWeight="bold" noOfLines={2}>{item.productDescription}</Text>
+                            <Text fontSize="sm" color="gray.600">S/ {formatMoney(item.unitPrice)} c/u</Text>
+                          </Box>
+                          <IconButton aria-label="Quitar" icon={<DeleteIcon />} size="sm" variant="ghost" colorScheme="red" onClick={() => removeCart(item.key)} />
+                        </Flex>
+                        <SimpleGrid columns={3} spacing={2} mt={3}>
+                          <FormControl>
+                            <FormLabel fontSize="xs" mb={1}>Cant.</FormLabel>
+                            <Input size="sm" type="number" min="1" value={item.quantity} onChange={(e) => updateCart(item.key, 'quantity', e.target.value)} />
+                          </FormControl>
+                          <FormControl>
+                            <FormLabel fontSize="xs" mb={1}>Precio</FormLabel>
+                            <Input size="sm" type="number" min="0" value={item.unitPrice} onChange={(e) => updateCart(item.key, 'unitPrice', e.target.value)} />
+                          </FormControl>
+                          <FormControl>
+                            <FormLabel fontSize="xs" mb={1}>Dscto.</FormLabel>
+                            <Input size="sm" type="number" min="0" value={item.discountAmount} onChange={(e) => updateCart(item.key, 'discountAmount', e.target.value)} />
+                          </FormControl>
+                        </SimpleGrid>
+                        <Flex justify="space-between" mt={3} pt={2} borderTopWidth="1px" borderColor="gray.100">
+                          <Text fontSize="sm" color="gray.600">Total linea</Text>
+                          <Text fontWeight="bold">S/ {formatMoney(lineTotal(item))}</Text>
+                        </Flex>
                       </Box>
-                      <Tooltip label="Agregar">
-                        <IconButton
-                          aria-label="Agregar producto"
-                          icon={<AddIcon />}
-                          size="sm"
-                          colorScheme="teal"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            addItemAndClearSearch(item)
-                          }}
+                    ))}
+                  </Flex>
+                ) : (
+                  <Box borderWidth="1px" borderStyle="dashed" borderColor="gray.300" borderRadius="md" p={6} textAlign="center">
+                    <Text color="gray.500">Agrega productos desde la galeria o escanea un codigo.</Text>
+                  </Box>
+                )}
+
+                <SimpleGrid columns={2} spacing={2} mt={4}>
+                  <SummaryBox label="Subtotal" tone="subtotal" value={`S/ ${formatMoney(totals.subtotal)}`} />
+                  <SummaryBox label="Descuento" tone="discount" value={`S/ ${formatMoney(totals.discountTotal)}`} />
+                  <SummaryBox label="IGV" tone="tax" value={`S/ ${formatMoney(totals.taxTotal)}`} />
+                  <SummaryBox label="Total" tone="total" value={`S/ ${formatMoney(totals.total)}`} />
+                </SimpleGrid>
+
+                <Box bg="green.50" borderWidth="1px" borderColor="green.200" borderRadius="md" p={3} mt={4}>
+                  <Heading size="sm" color="green.800" mb={3}>Datos de cobro</Heading>
+                  <SimpleGrid columns={1} spacing={3}>
+                    <FormControl>
+                      <FormLabel>Comprobante</FormLabel>
+                      <Select bg="white" value={selected.receiptType} onChange={(e) => setSelected((prev) => ({ ...prev, receiptType: e.target.value }))}>
+                        <option value="boleta">Boleta Electronica</option>
+                        <option value="factura">Factura Electronica</option>
+                        <option value="ticket">Ticket interno</option>
+                      </Select>
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel>Cliente</FormLabel>
+                      <Select bg="white" value={selected.customerId} onChange={(e) => handleCustomerChange(e.target.value)}>
+                        <option value="">Cliente varios</option>
+                        {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
+                      </Select>
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel>WhatsApp</FormLabel>
+                      <Input
+                        bg="white"
+                        value={selected.customerPhone}
+                        placeholder="999888777 o +51999888777"
+                        onChange={(e) => setSelected((prev) => ({ ...prev, customerPhone: e.target.value }))}
+                      />
+                    </FormControl>
+                    <SimpleGrid columns={2} spacing={3}>
+                      <FormControl>
+                        <FormLabel>Medio de pago</FormLabel>
+                        <Select bg="white" value={selected.paymentMethodId} onChange={(e) => setSelected((prev) => ({ ...prev, paymentMethodId: e.target.value }))}>
+                          {paymentMethods.map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}
+                        </Select>
+                      </FormControl>
+                      <FormControl>
+                        <FormLabel>Recibido</FormLabel>
+                        <Input
+                          bg="white"
+                          type="number"
+                          min="0"
+                          value={selected.paidAmount}
+                          placeholder={formatMoney(totals.total)}
+                          onChange={(e) => setSelected((prev) => ({ ...prev, paidAmount: e.target.value }))}
                         />
-                      </Tooltip>
-                    </Flex>
-                  )) : (
-                    <Box p={3}>
-                      <Text color="gray.500">Sin coincidencias</Text>
+                      </FormControl>
+                    </SimpleGrid>
+                    <FormControl>
+                      <FormLabel>Vuelto</FormLabel>
+                      <Input value={`S/ ${formatMoney(changeAmount)}`} isReadOnly bg="green.100" fontWeight="bold" color="green.800" />
+                    </FormControl>
+                  </SimpleGrid>
+                  {requiresPaymentVoucher && (
+                    <Box mt={3} p={3} bg="white" borderWidth="1px" borderColor="green.300" borderRadius="md">
+                      <Heading size="sm" color="green.800" mb={3}>Voucher del cliente</Heading>
+                      <SimpleGrid columns={1} spacing={3}>
+                        <FormControl>
+                          <FormLabel>Numero de operacion</FormLabel>
+                          <Input
+                            bg="gray.50"
+                            value={selected.paymentReferenceNumber}
+                            placeholder="Ej: 984512"
+                            onChange={(e) => setSelected((prev) => ({ ...prev, paymentReferenceNumber: e.target.value }))}
+                          />
+                        </FormControl>
+                        <FormControl>
+                          <FormLabel>Foto del voucher</FormLabel>
+                          <Input
+                            bg="gray.50"
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={(e) => uploadVoucher(e.target.files?.[0])}
+                          />
+                        </FormControl>
+                        {selected.paymentVoucherUrl ? (
+                          <Button as="a" href={selected.paymentVoucherUrl} target="_blank" rel="noreferrer" colorScheme="green" variant="outline" w="100%">
+                            Ver voucher
+                          </Button>
+                        ) : (
+                          <Button isLoading={uploadingVoucher} isDisabled w="100%">Voucher pendiente</Button>
+                        )}
+                      </SimpleGrid>
                     </Box>
                   )}
                 </Box>
-              )}
+              </Box>
+
+              <Box borderTopWidth="1px" borderColor="gray.200" p={4} bg="gray.50">
+                <Button colorScheme="green" leftIcon={<CheckIcon />} isLoading={saving} onClick={createSale} isDisabled={!cart.length} size="lg" w="100%" mb={3}>
+                  Cobrar S/ {formatMoney(totals.total)}
+                </Button>
+                <SimpleGrid columns={2} spacing={2}>
+                  {canManageTerminals && (
+                    <Button colorScheme="blue" variant="outline" onClick={() => setActiveModal('terminals')}>Cajas</Button>
+                  )}
+                  <Button colorScheme="orange" variant="outline" onClick={() => setActiveModal('cash')}>Movimiento</Button>
+                  <Button colorScheme="red" variant="outline" onClick={() => setActiveModal('close')}>Cierre</Button>
+                  <Button colorScheme="purple" variant="outline" onClick={() => setActiveModal('sales')}>Ventas S/ {formatMoney(recentSalesTotal)}</Button>
+                </SimpleGrid>
+              </Box>
             </Box>
-          </SectionCard>
+          </Box>
 
-          <SectionCard title="Venta actual" accent="blue" minH={{ base: 'auto', xl: 'calc(100vh - 190px)' }}>
-            <Box overflowX="auto" maxH={{ base: '360px', xl: 'calc(100vh - 520px)' }} overflowY="auto">
-              <Table size="sm">
-                <Thead bg="blue.50">
-                  <Tr>
-                    <Th>Producto</Th>
-                    <Th>Cant.</Th>
-                    <Th>Precio</Th>
-                    <Th>Dscto.</Th>
-                    <Th>Total</Th>
-                    <Th></Th>
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  {cart.map((item) => (
-                    <Tr key={item.key}>
-                      <Td minW="220px">{item.productDescription}</Td>
-                      <Td><Input size="sm" type="number" min="1" value={item.quantity} onChange={(e) => updateCart(item.key, 'quantity', e.target.value)} w="78px" /></Td>
-                      <Td><Input size="sm" type="number" min="0" value={item.unitPrice} onChange={(e) => updateCart(item.key, 'unitPrice', e.target.value)} w="96px" /></Td>
-                      <Td><Input size="sm" type="number" min="0" value={item.discountAmount} onChange={(e) => updateCart(item.key, 'discountAmount', e.target.value)} w="96px" /></Td>
-                      <Td>S/ {formatMoney(lineTotal(item))}</Td>
-                      <Td><Button size="sm" leftIcon={<DeleteIcon />} variant="ghost" colorScheme="red" onClick={() => removeCart(item.key)}>Quitar</Button></Td>
-                    </Tr>
-                  ))}
-                </Tbody>
-              </Table>
-            </Box>
+          <Modal isOpen={Boolean(variantProduct)} onClose={() => setVariantProduct(null)} size="2xl">
+            <ModalOverlay />
+            <ModalContent>
+              <ModalHeader bg="teal.50" color="teal.900">Seleccionar opcion</ModalHeader>
+              <ModalCloseButton />
+              <ModalBody pt={4}>
+                {variantProduct && (
+                  <Box>
+                    <SimpleGrid columns={{ base: 1, md: 3 }} spacing={3} mb={5}>
+                      <Box bg="gray.50" borderWidth="1px" borderColor="gray.200" borderRadius="md" p={3}>
+                        <Text fontSize="xs" color="gray.500" fontWeight="semibold">Producto</Text>
+                        <Text fontWeight="bold">{variantProduct.name}</Text>
+                      </Box>
+                      <Box bg="gray.50" borderWidth="1px" borderColor="gray.200" borderRadius="md" p={3}>
+                        <Text fontSize="xs" color="gray.500" fontWeight="semibold">Modelo</Text>
+                        <Text fontWeight="bold">{variantProduct.model || '-'}</Text>
+                      </Box>
+                      <Box bg="gray.50" borderWidth="1px" borderColor="gray.200" borderRadius="md" p={3}>
+                        <Text fontSize="xs" color="gray.500" fontWeight="semibold">Precio</Text>
+                        <Text fontWeight="bold" color="teal.700">
+                          S/ {formatMoney(variantProduct.minPrice)}
+                          {variantProduct.minPrice !== variantProduct.maxPrice ? ` - ${formatMoney(variantProduct.maxPrice)}` : ''}
+                        </Text>
+                      </Box>
+                    </SimpleGrid>
 
-            <SimpleGrid columns={{ base: 1, md: 4 }} spacing={3} my={4}>
-              <SummaryBox label="Subtotal" tone="subtotal" value={`S/ ${formatMoney(totals.subtotal)}`} />
-              <SummaryBox label="IGV" tone="tax" value={`S/ ${formatMoney(totals.taxTotal)}`} />
-              <SummaryBox label="Descuento" tone="discount" value={`S/ ${formatMoney(totals.discountTotal)}`} />
-              <SummaryBox label="Total" tone="total" value={`S/ ${formatMoney(totals.total)}`} />
-            </SimpleGrid>
-
-            <Box bg="green.50" borderWidth="1px" borderColor="green.200" borderRadius="md" p={4} mb={4}>
-              <Heading size="sm" color="green.800" mb={3}>Datos de cobro</Heading>
-              <SimpleGrid columns={{ base: 1, md: 6 }} spacing={4}>
-                <FormControl>
-                  <FormLabel>Comprobante</FormLabel>
-                  <Select bg="white" value={selected.receiptType} onChange={(e) => setSelected((prev) => ({ ...prev, receiptType: e.target.value }))}>
-                    <option value="boleta">Boleta Electronica</option>
-                    <option value="factura">Factura Electronica</option>
-                    <option value="ticket">Ticket interno</option>
-                  </Select>
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Cliente</FormLabel>
-                  <Select bg="white" value={selected.customerId} onChange={(e) => handleCustomerChange(e.target.value)}>
-                    <option value="">Cliente varios</option>
-                    {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
-                  </Select>
-                </FormControl>
-                <FormControl>
-                  <FormLabel>WhatsApp</FormLabel>
-                  <Input
-                    bg="white"
-                    value={selected.customerPhone}
-                    placeholder="999888777 o +51999888777"
-                    onChange={(e) => setSelected((prev) => ({ ...prev, customerPhone: e.target.value }))}
-                  />
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Medio de pago</FormLabel>
-                  <Select bg="white" value={selected.paymentMethodId} onChange={(e) => setSelected((prev) => ({ ...prev, paymentMethodId: e.target.value }))}>
-                    {paymentMethods.map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}
-                  </Select>
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Recibido</FormLabel>
-                  <Input
-                    bg="white"
-                    type="number"
-                    min="0"
-                    value={selected.paidAmount}
-                    placeholder={formatMoney(totals.total)}
-                    onChange={(e) => setSelected((prev) => ({ ...prev, paidAmount: e.target.value }))}
-                  />
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Vuelto</FormLabel>
-                  <Input value={`S/ ${formatMoney(changeAmount)}`} isReadOnly bg="green.100" fontWeight="bold" color="green.800" />
-                </FormControl>
-              </SimpleGrid>
-              {requiresPaymentVoucher && (
-                <Box mt={4} p={4} bg="white" borderWidth="1px" borderColor="green.300" borderRadius="md">
-                  <Heading size="sm" color="green.800" mb={3}>Voucher del cliente</Heading>
-                  <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} alignItems="end">
-                    <FormControl>
-                      <FormLabel>Numero de operacion</FormLabel>
-                      <Input
-                        bg="gray.50"
-                        value={selected.paymentReferenceNumber}
-                        placeholder="Ej: 984512"
-                        onChange={(e) => setSelected((prev) => ({ ...prev, paymentReferenceNumber: e.target.value }))}
-                      />
-                    </FormControl>
-                    <FormControl>
-                      <FormLabel>Foto del voucher</FormLabel>
-                      <Input
-                        bg="gray.50"
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        onChange={(e) => uploadVoucher(e.target.files?.[0])}
-                      />
-                    </FormControl>
                     <Box>
-                      {selected.paymentVoucherUrl ? (
-                        <Button as="a" href={selected.paymentVoucherUrl} target="_blank" rel="noreferrer" colorScheme="green" variant="outline" w="100%">
-                          Ver voucher
-                        </Button>
-                      ) : (
-                        <Button isLoading={uploadingVoucher} isDisabled w="100%">Voucher pendiente</Button>
-                      )}
+                      <Heading size="sm" mb={3}>Variables</Heading>
+                      <Flex gap={2} wrap="wrap">
+                        {variantProduct.variants.map((item) => {
+                          const outOfStock = Number(item.stock || 0) <= 0
+                          return (
+                            <Badge
+                              key={item.variantId || 'base'}
+                              as="button"
+                              type="button"
+                              px={4}
+                              py={3}
+                              borderRadius="md"
+                              colorScheme={outOfStock ? 'red' : 'teal'}
+                              cursor={outOfStock ? 'not-allowed' : 'pointer'}
+                              opacity={outOfStock ? 0.55 : 1}
+                              textAlign="left"
+                              whiteSpace="normal"
+                              maxW="220px"
+                              onClick={() => !outOfStock && addVariantFromModal(item)}
+                            >
+                              {variantOptionLabel(item)}
+                            </Badge>
+                          )
+                        })}
+                      </Flex>
                     </Box>
-                  </SimpleGrid>
-                </Box>
-              )}
-            </Box>
-
-            <Flex justify="space-between" align={{ base: 'stretch', md: 'center' }} direction={{ base: 'column', md: 'row' }} gap={3}>
-              <Flex gap={2} wrap="wrap">
-                {canManageTerminals && (
-                  <Button colorScheme="blue" variant="outline" onClick={() => setActiveModal('terminals')}>
-                    Cajas
-                  </Button>
+                  </Box>
                 )}
-                <Button colorScheme="orange" variant="outline" onClick={() => setActiveModal('cash')}>
-                  Movimiento de caja
-                </Button>
-                <Button colorScheme="red" variant="outline" onClick={() => setActiveModal('close')}>
-                  Cierre de caja
-                </Button>
-                <Button colorScheme="purple" variant="outline" onClick={() => setActiveModal('sales')}>
-                  Ventas recientes: S/ {formatMoney(recentSalesTotal)}
-                </Button>
-              </Flex>
-              <Button colorScheme="green" leftIcon={<CheckIcon />} isLoading={saving} onClick={createSale} isDisabled={!cart.length} size="lg">
-                Cobrar
-              </Button>
-            </Flex>
-          </SectionCard>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="outline" onClick={() => setVariantProduct(null)}>Cerrar</Button>
+              </ModalFooter>
+            </ModalContent>
+          </Modal>
 
           <Modal isOpen={activeModal === 'cash'} onClose={() => setActiveModal(null)} size="xl">
             <ModalOverlay />
@@ -1118,7 +1310,7 @@ export default function Pos() {
               </ModalFooter>
             </ModalContent>
           </Modal>
-        </SimpleGrid>
+        </>
       )}
 
       <Modal isOpen={activeModal === 'terminals'} onClose={() => setActiveModal(null)} size="6xl">

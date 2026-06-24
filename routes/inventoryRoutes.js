@@ -2,12 +2,43 @@ const express = require('express');
 const InventoryController = require('../controllers/InventoryController');
 const authMiddleware = require('../middleware/authMiddleware');
 const { requireRoles } = require('../middleware/roleAccess');
-const { requireModule } = require('../middleware/moduleAccess');
+const { hasModule } = require('../middleware/moduleAccess');
 
 const router = express.Router();
 
 router.use(authMiddleware);
-router.use(requireModule('inventory'));
+
+const POS_ALLOWED_INVENTORY_PATHS = [
+  { method: 'GET', pattern: /^\/products\/?$/ },
+  { method: 'POST', pattern: /^\/products\/?$/ },
+  { method: 'PUT', pattern: /^\/products\/\d+\/?$/ },
+  { method: 'DELETE', pattern: /^\/products\/\d+\/?$/ },
+  { method: 'GET', pattern: /^\/locations\/?$/ },
+  { method: 'POST', pattern: /^\/locations\/?$/ },
+  { method: 'PUT', pattern: /^\/locations\/\d+\/?$/ },
+  { method: 'DELETE', pattern: /^\/locations\/\d+\/?$/ },
+  { method: 'GET', pattern: /^\/suppliers\/?$/ },
+  { method: 'GET', pattern: /^\/shelves\/?$/ },
+  { method: 'GET', pattern: /^\/customers\/?$/ },
+  { method: 'GET', pattern: /^\/sellable-items\/?$/ },
+  { method: 'GET', pattern: /^\/payment-methods\/?$/ },
+  { method: 'GET', pattern: /^\/stock\/?$/ },
+  { method: 'POST', pattern: /^\/stock\/adjust\/?$/ },
+];
+
+function isPosAllowedInventoryRequest(req) {
+  return POS_ALLOWED_INVENTORY_PATHS.some((route) => (
+    route.method === req.method && route.pattern.test(req.path)
+  ));
+}
+
+function requireInventoryOrPosCatalog(req, res, next) {
+  if (hasModule(req.user, 'inventory')) return next();
+  if (hasModule(req.user, 'pos') && isPosAllowedInventoryRequest(req)) return next();
+  return res.status(403).json({ error: 'Modulo inventory no contratado para esta empresa' });
+}
+
+router.use(requireInventoryOrPosCatalog);
 
 const CATALOG_PRODUCTS = ['administrativo', 'operativo'];
 const CATALOG_SUPPLIERS = ['administrativo', 'operativo'];
@@ -63,6 +94,7 @@ router.get('/quotations/:id/pdf', requireRoles(...QUOTATIONS), InventoryControll
 router.post('/quotations/:id/approve', requireRoles(...QUOTATIONS), InventoryController.approveQuotation);
 
 router.get('/stock', requireRoles(...STOCK), InventoryController.listStock);
+router.post('/stock/adjust', requireRoles(...STOCK), InventoryController.adjustStock);
 router.put('/stock/:id/shelf', requireRoles(...STOCK), InventoryController.moveStockShelf);
 
 router.get('/purchases', requireRoles(...PURCHASES), InventoryController.listPurchases);

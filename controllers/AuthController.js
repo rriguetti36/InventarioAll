@@ -24,7 +24,10 @@ class AuthController {
 
   static async registerCompany(req, res, next) {
     try {
-      const company = await CompanyService.registerCompany(req.body);
+      const company = await CompanyService.registerCompany({
+        ...req.body,
+        originHost: req.get('origin') || req.get('host'),
+      });
       res.status(201).json(company);
     } catch (err) {
       next(err);

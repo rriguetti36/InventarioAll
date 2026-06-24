@@ -27,9 +27,10 @@ const configuredOrigins = (process.env.CLIENT_ORIGIN || '')
   .map((origin) => origin.trim())
   .filter(Boolean);
 const localhostOrigin = /^http:\/\/(localhost|127\.0\.0\.1):\d+$/;
+const localDomainOrigin = /^http:\/\/[a-z0-9-]+\.local:\d+$/i;
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || localhostOrigin.test(origin) || configuredOrigins.includes(origin)) {
+    if (!origin || localhostOrigin.test(origin) || localDomainOrigin.test(origin) || configuredOrigins.includes(origin)) {
       return callback(null, true);
     }
     return callback(new Error('Origen no permitido por CORS'));

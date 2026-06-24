@@ -5,6 +5,21 @@ const CompanyService = require('./CompanyService');
 const { runWithDatabase } = require('../config/tenantContext');
 
 const tiendaRoles = ['admin_tienda', 'vendedor_tienda'];
+const posOnlyAssignableRoles = ['admin_tienda', 'vendedor_tienda'];
+
+function isPosOnlyActor(actor) {
+  const modules = actor?.modules || {};
+  return Boolean(modules.pos) && !modules.inventory;
+}
+
+function assertAssignableRole(role, actor, existingRole = null) {
+  if (!isPosOnlyActor(actor)) return;
+  if (posOnlyAssignableRoles.includes(role)) return;
+  if (existingRole === 'admin' && role === 'admin') return;
+  const error = new Error('En POS solo puedes asignar roles Admin Tienda o Vendedor Tienda');
+  error.status = 400;
+  throw error;
+}
 
 class UserService {
   static async getAllUsers() {
@@ -29,6 +44,7 @@ class UserService {
     }
     const hashed = await bcrypt.hash(data.password, 10);
     const role = data.role ?? 'user';
+    assertAssignableRole(role, actor);
     if (tiendaRoles.includes(role) && !data.assignedLocationId) {
       const error = new Error('Debes asignar una tienda para este perfil');
       error.status = 400;
@@ -61,6 +77,7 @@ class UserService {
       throw error;
     }
     const role = data.role ?? existingUser.role;
+    assertAssignableRole(role, actor, existingUser.role);
     if (tiendaRoles.includes(role) && !data.assignedLocationId) {
       const error = new Error('Debes asignar una tienda para este perfil');
       error.status = 400;

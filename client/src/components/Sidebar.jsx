@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Box, VStack, Link as ChakraLink, Heading, Button, Divider, IconButton, Text } from '@chakra-ui/react'
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon, HamburgerIcon } from '@chakra-ui/icons'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
-import { canAccess } from '../utils/access'
+import { appMode, canAccess, isAdminLike } from '../utils/access'
 
 function MenuLink({ to, children, collapsed, onNavigate }) {
   return (
@@ -30,7 +30,17 @@ export default function Sidebar({ user, onLogout, isDrawer = false, onNavigate }
   const [reportsOpen, setReportsOpen] = useState(() => localStorage.getItem('reportsMenuOpen') !== 'false')
   const [securityOpen, setSecurityOpen] = useState(() => localStorage.getItem('securityMenuOpen') !== 'false')
   const isAdmin = user?.role === 'admin'
+  const hasAdminAccess = isAdminLike(user)
   const isPlatformAdmin = isAdmin && !user?.companySlug
+  const showDashboard = appMode === 'inventpos'
+  const showPos = appMode !== 'inventarios' && canAccess(user, 'pos')
+  const showInventory = appMode !== 'pos'
+  const showPosStores = appMode === 'pos' && canAccess(user, 'locations')
+  const showPosProducts = appMode === 'pos' && canAccess(user, 'products')
+  const showPosStock = appMode === 'pos' && canAccess(user, 'stock')
+  const showPosUsers = appMode === 'pos' && hasAdminAccess
+  const showSecurity = appMode !== 'pos' && hasAdminAccess
+  const showHelp = appMode !== 'pos'
   const effectiveCollapsed = isDrawer ? false : collapsed
   const width = isDrawer ? '100%' : effectiveCollapsed ? '76px' : '250px'
 
@@ -107,23 +117,29 @@ export default function Sidebar({ user, onLogout, isDrawer = false, onNavigate }
       <Divider mb={4} />
 
       <VStack align="stretch" spacing={effectiveCollapsed ? 2 : 4}>
-        <MenuLink to="/dashboard" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Dashboard</MenuLink>
-        {canAccess(user, 'pos') && <MenuLink to="/pos" collapsed={effectiveCollapsed} onNavigate={onNavigate}>POS</MenuLink>}
+        {showDashboard && <MenuLink to="/dashboard" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Dashboard</MenuLink>}
+        {showPos && <MenuLink to="/pos" collapsed={effectiveCollapsed} onNavigate={onNavigate}>POS</MenuLink>}
+        {showPosStores && <MenuLink to="/inventory/locations" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Tiendas</MenuLink>}
+        {showPosProducts && <MenuLink to="/inventory/products" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Productos</MenuLink>}
+        {showPosStock && <MenuLink to="/inventory/stock" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Existencias</MenuLink>}
+        {showPosUsers && <MenuLink to="/users" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Usuarios</MenuLink>}
 
-        <Button
-          variant="ghost"
-          colorScheme="whiteAlpha"
-          justifyContent={effectiveCollapsed ? 'center' : 'space-between'}
-          px={2}
-          mt={effectiveCollapsed ? 0 : 4}
-          title={effectiveCollapsed ? 'Inventarios' : undefined}
-          onClick={toggleInventory}
-        >
-          {effectiveCollapsed ? 'I' : 'Inventarios'}
-          {!effectiveCollapsed && (inventoryOpen ? <ChevronUpIcon /> : <ChevronDownIcon />)}
-        </Button>
+        {showInventory && (
+          <Button
+            variant="ghost"
+            colorScheme="whiteAlpha"
+            justifyContent={effectiveCollapsed ? 'center' : 'space-between'}
+            px={2}
+            mt={effectiveCollapsed ? 0 : 4}
+            title={effectiveCollapsed ? 'Inventarios' : undefined}
+            onClick={toggleInventory}
+          >
+            {effectiveCollapsed ? 'I' : 'Inventarios'}
+            {!effectiveCollapsed && (inventoryOpen ? <ChevronUpIcon /> : <ChevronDownIcon />)}
+          </Button>
+        )}
 
-        {inventoryOpen && (
+        {showInventory && inventoryOpen && (
           <VStack align="stretch" spacing={effectiveCollapsed ? 2 : 1} pl={effectiveCollapsed ? 0 : 3}>
             {(canAccess(user, 'products') || canAccess(user, 'customers') || canAccess(user, 'suppliers') || canAccess(user, 'locations') || canAccess(user, 'shelves')) && (
               <>
@@ -212,7 +228,7 @@ export default function Sidebar({ user, onLogout, isDrawer = false, onNavigate }
           </VStack>
         )}
 
-        {isAdmin && (
+        {showSecurity && (
           <>
             <Button
               variant="ghost"
@@ -240,7 +256,7 @@ export default function Sidebar({ user, onLogout, isDrawer = false, onNavigate }
 
       <Divider my={4} />
 
-      <MenuLink to="/help" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Ayuda</MenuLink>
+      {showHelp && <MenuLink to="/help" collapsed={effectiveCollapsed} onNavigate={onNavigate}>Ayuda</MenuLink>}
 
       {effectiveCollapsed ? (
         <IconButton

@@ -2622,17 +2622,51 @@ export function QuotationForm() {
 export function StockList() {
   const { rows, loading, error, load } = useList('/inventory/stock')
   const shelves = useList('/inventory/shelves')
+  const products = useList('/inventory/sellable-items')
+  const locations = useList('/inventory/locations')
   const [moveTarget, setMoveTarget] = useState(null)
   const [targetShelfId, setTargetShelfId] = useState('')
   const [moving, setMoving] = useState(false)
+  const [adjustOpen, setAdjustOpen] = useState(false)
+  const [adjusting, setAdjusting] = useState(false)
+  const [adjustForm, setAdjustForm] = useState({ operation: 'entrada', productKey: '', locationId: '', shelfId: '', quantity: '', notes: '' })
   const toast = useToast()
   const targetShelves = useMemo(() => (
     moveTarget ? shelves.rows.filter((item) => String(item.locationId) === String(moveTarget.locationId)) : []
   ), [shelves.rows, moveTarget])
+  const selectedProduct = useMemo(() => {
+    const [productId, variantId = ''] = String(adjustForm.productKey || '').split('|')
+    return products.rows.find((item) => String(item.productId) === productId && String(item.variantId || '') === variantId) || null
+  }, [products.rows, adjustForm.productKey])
+  const adjustShelves = useMemo(() => (
+    shelves.rows.filter((item) => String(item.locationId) === String(adjustForm.locationId))
+  ), [shelves.rows, adjustForm.locationId])
+  const productOptions = useMemo(() => (
+    products.rows.filter((item) => !isServiceItem(item))
+  ), [products.rows])
 
   const openShelfMove = (row) => {
     setMoveTarget(row)
     setTargetShelfId(row.shelfId ? String(row.shelfId) : '')
+  }
+
+  const productOptionLabel = (item) => {
+    const sku = item.variantSku || item.productSku || ''
+    const name = item.displayName || item.name || 'Producto'
+    const stock = Number(item.stock || 0)
+    return `${name}${sku ? ` | ${sku}` : ''} | Stock ${stock}`
+  }
+
+  const openAdjust = (row = null) => {
+    setAdjustForm({
+      operation: 'entrada',
+      productKey: row ? `${row.productId}|${row.variantId || ''}` : '',
+      locationId: row?.locationId ? String(row.locationId) : locations.rows.length === 1 ? String(locations.rows[0].id) : '',
+      shelfId: row?.shelfId ? String(row.shelfId) : '',
+      quantity: '',
+      notes: '',
+    })
+    setAdjustOpen(true)
   }
 
   const submitShelfMove = async () => {
@@ -2650,9 +2684,40 @@ export function StockList() {
     }
   }
 
+  const submitAdjustment = async () => {
+    if (!selectedProduct || !adjustForm.locationId || Number(adjustForm.quantity) <= 0) {
+      toast({ title: 'Completa producto, tienda y cantidad', status: 'warning', duration: 3000, isClosable: true })
+      return
+    }
+    setAdjusting(true)
+    try {
+      await api.post('/inventory/stock/adjust', {
+        operation: adjustForm.operation,
+        productId: selectedProduct.productId,
+        variantId: selectedProduct.variantId || null,
+        locationId: adjustForm.locationId,
+        shelfId: adjustForm.shelfId || null,
+        quantity: adjustForm.quantity,
+        notes: adjustForm.notes,
+      })
+      toast({ title: 'Stock actualizado', status: 'success', duration: 2500, isClosable: true })
+      setAdjustOpen(false)
+      await load()
+    } catch (err) {
+      toast({ title: 'No se pudo ajustar el stock', description: err.response?.data?.error || err.message, status: 'error', duration: 3500, isClosable: true })
+    } finally {
+      setAdjusting(false)
+    }
+  }
+
   return (
     <Box>
       <PageHeader title="Existencias" />
+      <Flex justify="flex-end" mb={4}>
+        <Button leftIcon={<AddIcon />} colorScheme="blue" onClick={() => openAdjust()}>
+          Ajustar stock
+        </Button>
+      </Flex>
       <DataTable
         columns={[
           { key: 'sku', label: 'SKU' },
@@ -2667,11 +2732,82 @@ export function StockList() {
         loading={loading}
         error={error}
         actions={(row) => (
-          <Tooltip label="Cambiar estante" hasArrow>
-            <IconButton aria-label="Cambiar estante" icon={<EditIcon />} size="sm" variant="outline" onClick={() => openShelfMove(row)} />
-          </Tooltip>
+          <Flex gap={2} wrap="wrap">
+            <Tooltip label="Ajustar stock" hasArrow>
+              <IconButton aria-label="Ajustar stock" icon={<AddIcon />} size="sm" variant="outline" colorScheme="blue" onClick={() => openAdjust(row)} />
+            </Tooltip>
+            <Tooltip label="Cambiar estante" hasArrow>
+              <IconButton aria-label="Cambiar estante" icon={<EditIcon />} size="sm" variant="outline" onClick={() => openShelfMove(row)} />
+            </Tooltip>
+          </Flex>
         )}
       />
+      <Modal isOpen={adjustOpen} onClose={() => setAdjustOpen(false)} size="xl">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Ajustar stock POS</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack align="stretch" spacing={4}>
+              <FormControl isRequired>
+                <FormLabel>Producto / variante</FormLabel>
+                <Select value={adjustForm.productKey} onChange={(e) => setAdjustForm({ ...adjustForm, productKey: e.target.value })} isDisabled={products.loading}>
+                  <option value="">Selecciona</option>
+                  {productOptions.map((item) => (
+                    <option key={`${item.productId}-${item.variantId || 'base'}`} value={`${item.productId}|${item.variantId || ''}`}>
+                      {productOptionLabel(item)}
+                    </option>
+                  ))}
+                </Select>
+              </FormControl>
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                <FormControl isRequired>
+                  <FormLabel>Tienda</FormLabel>
+                  <Select
+                    value={adjustForm.locationId}
+                    onChange={(e) => setAdjustForm({ ...adjustForm, locationId: e.target.value, shelfId: '' })}
+                    isDisabled={locations.loading}
+                  >
+                    <option value="">Selecciona</option>
+                    {locations.rows.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                  </Select>
+                </FormControl>
+                <FormControl>
+                  <FormLabel>Estante</FormLabel>
+                  <Select value={adjustForm.shelfId} onChange={(e) => setAdjustForm({ ...adjustForm, shelfId: e.target.value })} isDisabled={!adjustForm.locationId || shelves.loading}>
+                    <option value="">Sin estante</option>
+                    {adjustShelves.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                  </Select>
+                </FormControl>
+              </SimpleGrid>
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                <FormControl isRequired>
+                  <FormLabel>Operacion</FormLabel>
+                  <Select value={adjustForm.operation} onChange={(e) => setAdjustForm({ ...adjustForm, operation: e.target.value })}>
+                    <option value="entrada">Entrada</option>
+                    <option value="salida">Salida</option>
+                    <option value="ajuste">Fijar stock actual</option>
+                  </Select>
+                </FormControl>
+                <FormControl isRequired>
+                  <FormLabel>{adjustForm.operation === 'ajuste' ? 'Stock final' : 'Cantidad'}</FormLabel>
+                  <NumberInput min={0} value={adjustForm.quantity} onChange={(value) => setAdjustForm({ ...adjustForm, quantity: value })}>
+                    <NumberInputField />
+                  </NumberInput>
+                </FormControl>
+              </SimpleGrid>
+              <FormControl>
+                <FormLabel>Nota</FormLabel>
+                <Textarea value={adjustForm.notes} onChange={(e) => setAdjustForm({ ...adjustForm, notes: e.target.value })} placeholder="Ejemplo: stock inicial, ajuste por conteo, merma" />
+              </FormControl>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={() => setAdjustOpen(false)}>Cancelar</Button>
+            <Button colorScheme="blue" isLoading={adjusting} onClick={submitAdjustment}>Guardar ajuste</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
       <Modal isOpen={!!moveTarget} onClose={() => setMoveTarget(null)}>
         <ModalOverlay />
         <ModalContent>

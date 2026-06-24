@@ -43,6 +43,21 @@ function modulesFromPlan(value, fallback = { inventory: true, pos: true }) {
   return fallback;
 }
 
+function planFromHost(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return null;
+  let hostname = raw;
+  try {
+    hostname = new URL(raw).hostname.toLowerCase();
+  } catch (err) {
+    hostname = raw.split(':')[0];
+  }
+  if (hostname.includes('inventpos.') || hostname.includes('invenpos.')) return 'invenpos';
+  if (hostname.includes('pos.')) return 'pos';
+  if (hostname.includes('inventarios.') || hostname.includes('inventory.')) return 'inventory';
+  return null;
+}
+
 function normalizeModules(data = {}, fallback = { inventory: true, pos: true }) {
   if (data.modules && typeof data.modules === 'object') {
     return {
@@ -50,6 +65,8 @@ function normalizeModules(data = {}, fallback = { inventory: true, pos: true }) 
       pos: Boolean(data.modules.pos),
     };
   }
+  const hostPlan = planFromHost(data.sourceHost || data.originHost || data.host);
+  if (hostPlan) return modulesFromPlan(hostPlan, fallback);
   return modulesFromPlan(data.planCode || data.plan || data.product || data.planName, fallback);
 }
 
@@ -198,8 +215,9 @@ class CompanyService {
     const adminEmail = String(data.adminEmail || data.email || '').trim().toLowerCase();
     const adminPassword = data.adminPassword || data.password;
     const slug = slugify(data.slug || name);
+    const hostPlan = planFromHost(data.sourceHost || data.originHost || data.host);
     const modules = normalizeModules(data, { inventory: true, pos: true });
-    const planName = data.planName || data.planCode || data.plan || (modules.inventory && modules.pos ? 'invenpos' : modules.pos ? 'pos' : 'inventory');
+    const planName = hostPlan || data.planName || data.planCode || data.plan || (modules.inventory && modules.pos ? 'invenpos' : modules.pos ? 'pos' : 'inventory');
 
     if (!name || !slug || !adminName || !adminEmail || !adminPassword) {
       const error = new Error('Empresa, slug, adminName, adminEmail y adminPassword son obligatorios');

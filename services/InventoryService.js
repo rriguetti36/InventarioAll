@@ -214,6 +214,11 @@ class InventoryService {
     return InventoryModel.moveStockShelf(stockId, data.targetShelfId, scopedLocationId(user));
   }
 
+  static adjustStock(data, user) {
+    required(data, ['productId', 'locationId', 'quantity']);
+    return InventoryModel.adjustStock(data, scopedLocationId(user));
+  }
+
   static listPurchases() {
     return InventoryModel.listPurchases();
   }

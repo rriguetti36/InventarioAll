@@ -2,10 +2,15 @@ function normalizeRole(role) {
   return role || 'user';
 }
 
+function isPosStoreAdmin(user) {
+  const modules = user?.modules || {};
+  return normalizeRole(user?.role) === 'admin_tienda' && Boolean(modules.pos) && !modules.inventory;
+}
+
 function requireRoles(...roles) {
   return (req, res, next) => {
     const role = normalizeRole(req.user?.role);
-    if (role === 'admin' || roles.includes(role)) {
+    if (role === 'admin' || isPosStoreAdmin(req.user) || roles.includes(role)) {
       return next();
     }
     return res.status(403).json({ error: 'Acceso denegado para este perfil' });
@@ -22,5 +27,6 @@ function scopedLocationId(user) {
 
 module.exports = {
   requireRoles,
+  isPosStoreAdmin,
   scopedLocationId,
 };

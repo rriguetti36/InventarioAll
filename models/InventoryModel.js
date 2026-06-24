@@ -494,6 +494,7 @@ class InventoryModel {
         p.name,
         p.type,
         p.model,
+        p.imageUrl,
         v.displayName,
         p.unit,
         p.costPrice,
@@ -506,7 +507,7 @@ class InventoryModel {
         AND ((v.id IS NULL AND st.variantId IS NULL) OR st.variantId = v.id)
         AND (@locationId IS NULL OR st.locationId = @locationId)
       WHERE p.estado = 1
-      GROUP BY v.id, p.id, p.sku, v.sku, p.name, p.type, p.model, v.displayName, p.unit, p.costPrice, p.salePrice, p.affectsTax
+      GROUP BY v.id, p.id, p.sku, v.sku, p.name, p.type, p.model, p.imageUrl, v.displayName, p.unit, p.costPrice, p.salePrice, p.affectsTax
       ORDER BY ISNULL(v.displayName, p.name)
     `);
     return result.recordset;
@@ -1016,6 +1017,108 @@ class InventoryModel {
 
       await transaction.commit();
       return { ok: true };
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
+    }
+  }
+
+  static async adjustStock(data, scopedLocationId = null) {
+    const pool = await poolPromise;
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    try {
+      const locationId = Number(data.locationId);
+      const productId = Number(data.productId);
+      const variantId = nullableInt(data.variantId);
+      const shelfId = nullableInt(data.shelfId);
+      const quantity = Number(data.quantity || 0);
+      const operation = data.operation || 'entrada';
+      const allowedOperations = ['entrada', 'salida', 'ajuste'];
+
+      if (!productId || !locationId || data.quantity === undefined || data.quantity === null || data.quantity === '' || quantity < 0) {
+        const error = new Error('Producto, tienda y cantidad son obligatorios');
+        error.status = 400;
+        throw error;
+      }
+      if (!allowedOperations.includes(operation) || (operation !== 'ajuste' && quantity <= 0)) {
+        const error = new Error('Operacion o cantidad no valida');
+        error.status = 400;
+        throw error;
+      }
+
+      if (scopedLocationId && Number(scopedLocationId) !== locationId) {
+        const error = new Error('Solo puedes ajustar stock de tu tienda asignada');
+        error.status = 403;
+        throw error;
+      }
+
+      const productResult = await new sql.Request(transaction)
+        .input('productId', sql.Int, productId)
+        .input('variantId', sql.Int, variantId)
+        .query(`
+          SELECT p.id, p.type, v.id AS variantId
+          FROM Products p
+          LEFT JOIN ProductVariants v ON v.productId = p.id AND v.id = @variantId AND v.estado = 1
+          WHERE p.id = @productId AND p.estado = 1
+        `);
+      const product = productResult.recordset[0];
+      if (!product || (variantId && !product.variantId)) {
+        const error = new Error('Producto o variante no valida');
+        error.status = 400;
+        throw error;
+      }
+      if (isServiceType(product.type)) {
+        const error = new Error('Los servicios no manejan stock');
+        error.status = 400;
+        throw error;
+      }
+
+      const locationResult = await new sql.Request(transaction)
+        .input('locationId', sql.Int, locationId)
+        .query('SELECT id FROM InventoryLocations WHERE id = @locationId');
+      if (!locationResult.recordset[0]) {
+        const error = new Error('Tienda no valida');
+        error.status = 400;
+        throw error;
+      }
+
+      if (shelfId) {
+        const shelfResult = await new sql.Request(transaction)
+          .input('shelfId', sql.Int, shelfId)
+          .input('locationId', sql.Int, locationId)
+          .query('SELECT id FROM Shelves WHERE id = @shelfId AND locationId = @locationId');
+        if (!shelfResult.recordset[0]) {
+          const error = new Error('El estante no pertenece a la tienda seleccionada');
+          error.status = 400;
+          throw error;
+        }
+      }
+
+      const current = Number(await InventoryModel.getStock(transaction, productId, variantId, locationId, shelfId));
+      let delta = quantity;
+      let movementType = 'entrada';
+      if (operation === 'salida') {
+        delta = quantity * -1;
+        movementType = 'salida';
+      } else if (operation === 'ajuste') {
+        delta = quantity - current;
+        movementType = 'ajuste';
+      }
+
+      if (current + delta < 0) {
+        const error = new Error('El ajuste no puede dejar stock negativo');
+        error.status = 400;
+        throw error;
+      }
+
+      if (delta !== 0) {
+        await InventoryModel.addStock(transaction, productId, variantId, locationId, shelfId, delta);
+      }
+      await InventoryModel.insertMovement(transaction, productId, variantId, locationId, shelfId, movementType, operation === 'ajuste' ? delta : Math.abs(delta), 'ajuste_pos', null, data.notes || 'Ajuste simple POS');
+
+      await transaction.commit();
+      return { ok: true, previousStock: current, currentStock: current + delta, delta };
     } catch (err) {
       await transaction.rollback();
       throw err;
