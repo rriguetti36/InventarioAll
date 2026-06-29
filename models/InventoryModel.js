@@ -541,8 +541,28 @@ class InventoryModel {
     return result.recordset;
   }
 
+  static async getCustomer(id) {
+    const pool = await poolPromise;
+    const result = await pool.request()
+      .input('id', sql.Int, Number(id))
+      .query('SELECT * FROM Customers WHERE id = @id');
+    return result.recordset[0] || null;
+  }
+
   static async createCustomer(data) {
     const pool = await poolPromise;
+    if (data.documentNumber) {
+      const existing = await pool.request()
+        .input('documentNumber', sql.NVarChar(30), data.documentNumber)
+        .query('SELECT TOP 1 id, name, estado FROM Customers WHERE documentNumber = @documentNumber');
+      if (existing.recordset[0]) {
+        const error = new Error(existing.recordset[0].estado
+          ? 'Ya existe un cliente con este numero de documento'
+          : 'El documento pertenece a un cliente deshabilitado');
+        error.status = 409;
+        throw error;
+      }
+    }
     const result = await pool.request()
       .input('documentType', sql.NVarChar(30), data.documentType || null)
       .input('documentNumber', sql.NVarChar(30), data.documentNumber || null)
@@ -561,6 +581,17 @@ class InventoryModel {
 
   static async updateCustomer(id, data) {
     const pool = await poolPromise;
+    if (data.documentNumber) {
+      const existing = await pool.request()
+        .input('id', sql.Int, id)
+        .input('documentNumber', sql.NVarChar(30), data.documentNumber)
+        .query('SELECT TOP 1 id FROM Customers WHERE documentNumber = @documentNumber AND id <> @id');
+      if (existing.recordset[0]) {
+        const error = new Error('Ya existe otro cliente con este numero de documento');
+        error.status = 409;
+        throw error;
+      }
+    }
     const result = await pool.request()
       .input('id', sql.Int, id)
       .input('documentType', sql.NVarChar(30), data.documentType || null)

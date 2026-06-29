@@ -20,6 +20,7 @@ const POS_ALLOWED_INVENTORY_PATHS = [
   { method: 'GET', pattern: /^\/suppliers\/?$/ },
   { method: 'GET', pattern: /^\/shelves\/?$/ },
   { method: 'GET', pattern: /^\/customers\/?$/ },
+  { method: 'POST', pattern: /^\/customers\/?$/ },
   { method: 'GET', pattern: /^\/sellable-items\/?$/ },
   { method: 'GET', pattern: /^\/payment-methods\/?$/ },
   { method: 'GET', pattern: /^\/stock\/?$/ },

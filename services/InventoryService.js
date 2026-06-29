@@ -135,12 +135,26 @@ class InventoryService {
 
   static createCustomer(data) {
     required(data, ['name']);
-    return InventoryModel.createCustomer(data);
+    const documentType = String(data.documentType || '').toUpperCase();
+    const documentNumber = String(data.documentNumber || '').replace(/\s/g, '');
+    if (documentType === 'RUC' && !/^\d{11}$/.test(documentNumber)) {
+      const error = new Error('El RUC debe tener 11 digitos');
+      error.status = 400;
+      throw error;
+    }
+    return InventoryModel.createCustomer({ ...data, documentType, documentNumber });
   }
 
   static updateCustomer(id, data) {
     required(data, ['name']);
-    return InventoryModel.updateCustomer(id, data);
+    const documentType = String(data.documentType || '').toUpperCase();
+    const documentNumber = String(data.documentNumber || '').replace(/\s/g, '');
+    if (documentType === 'RUC' && !/^\d{11}$/.test(documentNumber)) {
+      const error = new Error('El RUC debe tener 11 digitos');
+      error.status = 400;
+      throw error;
+    }
+    return InventoryModel.updateCustomer(id, { ...data, documentType, documentNumber });
   }
 
   static deleteCustomer(id) {

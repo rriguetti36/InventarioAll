@@ -31,8 +31,10 @@ import {
   Tr,
   useToast,
 } from '@chakra-ui/react'
-import { CheckIcon, DeleteIcon, RepeatIcon } from '@chakra-ui/icons'
-import api from '../services/api'
+import { AddIcon, CheckIcon, DeleteIcon, RepeatIcon } from '@chakra-ui/icons'
+import api, { resolveAssetUrl } from '../services/api'
+
+const PERU_TIME_ZONE = 'America/Lima'
 
 function formatMoney(value) {
   return Number(value || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -52,7 +54,11 @@ function taxableLine(item) {
 
 function ticketDate(value) {
   if (!value) return ''
-  return new Date(value).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' })
+  return new Date(value).toLocaleString('es-PE', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: PERU_TIME_ZONE,
+  })
 }
 
 function escapeHtml(value) {
@@ -94,9 +100,25 @@ function receiptTypeLabel(value) {
   return labels[value] || 'Comprobante'
 }
 
-function paymentNeedsVoucher(methodName) {
+function paymentNeedsReference(methodName) {
+  const normalized = String(methodName || '').toLowerCase()
+  return ['yape', 'plin', 'transferencia', 'deposito', 'depósito', 'tarjeta', 'card', 'visa', 'mastercard']
+    .some((term) => normalized.includes(term))
+}
+
+function paymentAcceptsVoucherImage(methodName) {
   const normalized = String(methodName || '').toLowerCase()
   return ['yape', 'plin', 'transferencia', 'deposito', 'depósito'].some((term) => normalized.includes(term))
+}
+
+function paymentNeedsVoucherImage(methodName) {
+  const normalized = String(methodName || '').toLowerCase()
+  return ['transferencia', 'deposito', 'depósito'].some((term) => normalized.includes(term))
+}
+
+function isCardPayment(methodName) {
+  const normalized = String(methodName || '').toLowerCase()
+  return ['tarjeta', 'card', 'visa', 'mastercard'].some((term) => normalized.includes(term))
 }
 
 function storedUser() {
@@ -135,6 +157,7 @@ function buildTicketText(ticket) {
     `${receiptTypeLabel(sale.receiptType)} ${sale.receiptFullNumber || sale.id || ''}`.trim(),
     `Fecha: ${ticketDate(sale.saleDate)}`,
     `Cliente: ${sale.customerName || 'Cliente varios'}`,
+    sale.customerDocumentNumber ? `Documento: ${sale.customerDocumentType || ''} ${sale.customerDocumentNumber}`.trim() : '',
     '------------------------------',
     ...items.map((item) => `${Number(item.quantity || 0)} x ${item.productDescription} S/ ${formatMoney(item.total)}`),
     '------------------------------',
@@ -196,6 +219,7 @@ function buildTicketHtml(ticket) {
           <div>Fecha: ${escapeHtml(ticketDate(sale.saleDate))}</div>
           <div>Vendedor: ${escapeHtml(sale.sellerName || '')}</div>
           <div>Cliente: ${escapeHtml(sale.customerName || 'Cliente varios')}</div>
+          ${sale.customerDocumentNumber ? `<div>Documento: ${escapeHtml(`${sale.customerDocumentType || ''} ${sale.customerDocumentNumber}`.trim())}</div>` : ''}
         </div>
         <div class="line"></div>
         <table>${itemRows}</table>
@@ -260,6 +284,7 @@ export default function Pos() {
   const loggedUser = useMemo(() => storedUser(), [])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [savingCustomer, setSavingCustomer] = useState(false)
   const [uploadingVoucher, setUploadingVoucher] = useState(false)
   const [terminals, setTerminals] = useState([])
   const [locations, setLocations] = useState([])
@@ -287,6 +312,8 @@ export default function Pos() {
   const [cashMovement, setCashMovement] = useState({ movementType: 'withdrawal', amount: '', reason: '', authorizerEmail: '', authorizerPassword: '' })
   const [closeData, setCloseData] = useState({ countedCash: '', notes: '', authorizerEmail: '', authorizerPassword: '' })
   const [activeModal, setActiveModal] = useState(null)
+  const [customerModalOpen, setCustomerModalOpen] = useState(false)
+  const [customerForm, setCustomerForm] = useState({ documentType: 'DNI', documentNumber: '', name: '', address: '', phone: '', email: '' })
   const [lastTicket, setLastTicket] = useState(null)
   const canManageTerminals = ['admin', 'administrativo', 'admin_tienda'].includes(loggedUser.role)
   const requiresSupervisorAuth = loggedUser.role === 'vendedor_tienda'
@@ -303,6 +330,11 @@ export default function Pos() {
   }, { subtotal: 0, discountTotal: 0, taxTotal: 0, total: 0 }), [cart])
 
   const recentSalesTotal = useMemo(() => sales.reduce((acc, sale) => acc + Number(sale.total || 0), 0), [sales])
+  const activeCustomers = useMemo(() => customers.filter((customer) => Number(customer.estado) === 1), [customers])
+  const selectedCustomer = useMemo(
+    () => customers.find((customer) => String(customer.id) === String(selected.customerId)),
+    [customers, selected.customerId],
+  )
 
   const paidAmount = selected.paidAmount === '' ? totals.total : Number(selected.paidAmount || 0)
   const changeAmount = Math.max(0, paidAmount - totals.total)
@@ -310,7 +342,10 @@ export default function Pos() {
     () => paymentMethods.find((item) => String(item.id) === String(selected.paymentMethodId)),
     [paymentMethods, selected.paymentMethodId],
   )
-  const requiresPaymentVoucher = paymentNeedsVoucher(selectedPaymentMethod?.name)
+  const requiresPaymentReference = paymentNeedsReference(selectedPaymentMethod?.name)
+  const acceptsVoucherImage = paymentAcceptsVoucherImage(selectedPaymentMethod?.name)
+  const requiresVoucherImage = paymentNeedsVoucherImage(selectedPaymentMethod?.name)
+  const cardPayment = isCardPayment(selectedPaymentMethod?.name)
 
   const filteredItems = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -478,6 +513,67 @@ export default function Pos() {
     }))
   }
 
+  const openCustomerModal = () => {
+    setCustomerForm({
+      documentType: selected.receiptType === 'factura' ? 'RUC' : 'DNI',
+      documentNumber: '',
+      name: '',
+      address: '',
+      phone: '',
+      email: '',
+    })
+    setCustomerModalOpen(true)
+  }
+
+  const saveQuickCustomer = async () => {
+    const documentType = String(customerForm.documentType || '').toUpperCase()
+    const documentNumber = String(customerForm.documentNumber || '').replace(/\s/g, '')
+    const name = String(customerForm.name || '').trim()
+    if (!name) {
+      toast({ title: 'Ingresa la razon social o nombre del cliente', status: 'warning' })
+      return
+    }
+    if (documentType === 'RUC' && !/^\d{11}$/.test(documentNumber)) {
+      toast({ title: 'El RUC debe tener 11 digitos', status: 'warning' })
+      return
+    }
+    if (selected.receiptType === 'factura' && !String(customerForm.address || '').trim()) {
+      toast({ title: 'Ingresa la direccion fiscal', status: 'warning' })
+      return
+    }
+    const existing = customers.find((customer) => (
+      documentNumber && String(customer.documentNumber || '') === documentNumber
+    ))
+    if (existing) {
+      if (!Number(existing.estado)) {
+        toast({ title: 'Este cliente esta deshabilitado', description: 'Debe reactivarse desde el modulo Clientes.', status: 'warning' })
+        return
+      }
+      handleCustomerChange(existing.id)
+      setCustomerModalOpen(false)
+      toast({ title: 'Cliente existente seleccionado', status: 'info' })
+      return
+    }
+    setSavingCustomer(true)
+    try {
+      const { data } = await api.post('/inventory/customers', {
+        ...customerForm,
+        documentType,
+        documentNumber,
+        name,
+        estado: 1,
+      })
+      setCustomers((prev) => [...prev, data].sort((a, b) => String(a.name).localeCompare(String(b.name))))
+      setSelected((prev) => ({ ...prev, customerId: data.id, customerPhone: data.phone || '' }))
+      setCustomerModalOpen(false)
+      toast({ title: 'Cliente registrado y seleccionado', status: 'success' })
+    } catch (err) {
+      toast({ title: err.response?.data?.error || err.message, status: 'error' })
+    } finally {
+      setSavingCustomer(false)
+    }
+  }
+
   const openCashShift = async () => {
     setSaving(true)
     try {
@@ -554,15 +650,27 @@ export default function Pos() {
   const createSale = async () => {
     if (!openShift) return
     const method = paymentMethods.find((item) => String(item.id) === String(selected.paymentMethodId))
-    const customer = customers.find((item) => String(item.id) === String(selected.customerId))
+    const customer = selectedCustomer
     const amount = paidAmount
     const customerPhone = selected.customerPhone ? normalizeWhatsappPhone(selected.customerPhone) : null
     if (selected.receiptType === 'factura' && !customer) {
       toast({ title: 'Selecciona un cliente para emitir factura', status: 'warning' })
       return
     }
-    if (requiresPaymentVoucher && (!selected.paymentReferenceNumber || !selected.paymentVoucherUrl)) {
-      toast({ title: 'Registra numero de operacion y foto del voucher', status: 'warning' })
+    if (selected.receiptType === 'factura' && (String(customer?.documentType || '').toUpperCase() !== 'RUC' || !/^\d{11}$/.test(String(customer?.documentNumber || '')))) {
+      toast({ title: 'El cliente debe tener un RUC valido de 11 digitos', status: 'warning' })
+      return
+    }
+    if (selected.receiptType === 'factura' && !String(customer?.address || '').trim()) {
+      toast({ title: 'El cliente debe tener direccion fiscal', status: 'warning' })
+      return
+    }
+    if (requiresPaymentReference && !selected.paymentReferenceNumber) {
+      toast({ title: cardPayment ? 'Registra el codigo de autorizacion del POS' : 'Registra el numero de operacion', status: 'warning' })
+      return
+    }
+    if (requiresVoucherImage && !selected.paymentVoucherUrl) {
+      toast({ title: 'Adjunta la foto del voucher', status: 'warning' })
       return
     }
     setSaving(true)
@@ -745,90 +853,131 @@ export default function Pos() {
             gap={4}
             alignItems="start"
           >
-            <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" overflow="hidden" boxShadow="sm">
+            <Box>
               <Flex
-                px={4}
-                py={3}
-                gap={3}
+                justify="space-between"
                 align={{ base: 'stretch', md: 'center' }}
                 direction={{ base: 'column', md: 'row' }}
-                bg="teal.50"
-                borderBottomWidth="1px"
-                borderColor="teal.200"
+                gap={3}
+                mb={4}
+                bg="white"
+                borderWidth="1px"
+                borderColor={openShift ? 'green.300' : 'orange.300'}
+                borderLeftWidth="6px"
+                borderRadius="md"
+                p={4}
+                boxShadow="sm"
               >
-                <Box flex="1">
-                  <Input
-                    value={search}
-                    onChange={(e) => handleSearchChange(e.target.value)}
-                    onKeyDown={handleSearchKeyDown}
-                    placeholder="Escanea codigo de barra o busca producto"
-                    bg="white"
-                    h="48px"
-                    fontSize="md"
-                    autoFocus
-                  />
+                <Box>
+                  <Heading size="lg">POS</Heading>
+                  <Text color={openShift ? 'green.700' : 'orange.700'} fontWeight="semibold">
+                    {openShift ? `${openShift.terminalName || 'Terminal'} | ${openShift.locationName || ''}` : 'Caja sin turno abierto'}
+                  </Text>
                 </Box>
                 <Flex gap={2} wrap="wrap">
-                  <Badge colorScheme="teal" px={3} py={2} borderRadius="md">{galleryProducts.length} visibles</Badge>
-                  <Badge colorScheme="green" px={3} py={2} borderRadius="md">{cart.length} en carrito</Badge>
+                  {canManageTerminals && (
+                    <Button colorScheme="blue" variant="outline" onClick={() => setActiveModal('terminals')}>
+                      Cajas
+                    </Button>
+                  )}
+                  <Button colorScheme="orange" variant="outline" onClick={() => setActiveModal('cash')}>
+                    Movimiento
+                  </Button>
+                  <Button colorScheme="red" variant="outline" onClick={() => setActiveModal('close')}>
+                    Cierre
+                  </Button>
+                  <Button colorScheme="purple" variant="outline" onClick={() => setActiveModal('sales')}>
+                    Ventas S/ {formatMoney(recentSalesTotal)}
+                  </Button>
+                  <Button leftIcon={<RepeatIcon />} variant="outline" onClick={loadData}>Actualizar</Button>
                 </Flex>
               </Flex>
 
-              <Box p={4} maxH={{ base: 'none', xl: 'calc(100vh - 230px)' }} overflowY={{ base: 'visible', xl: 'auto' }}>
-                {galleryProducts.length ? (
-                  <SimpleGrid columns={{ base: 2, md: 3, lg: 4, '2xl': 5 }} spacing={3}>
-                    {galleryProducts.map((product) => {
-                      const hasVariants = product.variants.length > 1
-                      const firstItem = product.variants[0]
-                      const outOfStock = Number(product.stock || 0) <= 0
-                      const title = product.name
-                      const priceLabel = product.minPrice === product.maxPrice
-                        ? `S/ ${formatMoney(product.minPrice)}`
-                        : `S/ ${formatMoney(product.minPrice)} - ${formatMoney(product.maxPrice)}`
-                      return (
-                        <Box
-                          key={product.productId}
-                          borderWidth="1px"
-                          borderColor={outOfStock ? 'red.200' : 'gray.200'}
-                          borderRadius="md"
-                          bg={outOfStock ? 'red.50' : 'white'}
-                          overflow="hidden"
-                          cursor="pointer"
-                          opacity={outOfStock ? 0.72 : 1}
-                          _hover={{ borderColor: outOfStock ? 'red.300' : 'teal.400', boxShadow: 'md', transform: 'translateY(-1px)' }}
-                          transition="all 0.15s ease"
-                          onClick={() => selectGalleryProduct(product)}
-                        >
-                          <Box h={{ base: '150px', md: '184px' }} bg="gray.100" display="grid" placeItems="center" position="relative">
-                            {product.imageUrl ? (
-                              <Image src={product.imageUrl} alt={title} w="100%" h="100%" objectFit="cover" />
-                            ) : (
-                              <Text fontSize="3xl" fontWeight="bold" color="gray.400">
-                                {String(title || 'P').slice(0, 1).toUpperCase()}
-                              </Text>
-                            )}
-                            {outOfStock && (
-                              <Badge position="absolute" top={2} right={2} colorScheme="red">Sin stock</Badge>
-                            )}
-                            {hasVariants && (
-                              <Badge position="absolute" bottom={2} left={2} colorScheme="teal">{product.variants.length} opciones</Badge>
-                            )}
-                            <Box position="absolute" left={0} right={0} bottom={0} bg="blackAlpha.700" color="white" px={3} py={2}>
-                              <Flex justify="space-between" align="center" gap={2}>
-                                <Text fontSize="sm" fontWeight="bold" noOfLines={1}>{title}</Text>
-                                <Text fontWeight="bold" flexShrink={0}>{priceLabel}</Text>
-                              </Flex>
+              <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" overflow="hidden" boxShadow="sm">
+                <Flex
+                  px={4}
+                  py={3}
+                  gap={3}
+                  align={{ base: 'stretch', md: 'center' }}
+                  direction={{ base: 'column', md: 'row' }}
+                  bg="teal.50"
+                  borderBottomWidth="1px"
+                  borderColor="teal.200"
+                >
+                  <Box flex="1">
+                    <Input
+                      value={search}
+                      onChange={(e) => handleSearchChange(e.target.value)}
+                      onKeyDown={handleSearchKeyDown}
+                      placeholder="Escanea codigo de barra o busca producto"
+                      bg="white"
+                      h="48px"
+                      fontSize="md"
+                      autoFocus
+                    />
+                  </Box>
+                  <Flex gap={2} wrap="wrap">
+                    <Badge colorScheme="teal" px={3} py={2} borderRadius="md">{galleryProducts.length} visibles</Badge>
+                    <Badge colorScheme="green" px={3} py={2} borderRadius="md">{cart.length} en carrito</Badge>
+                  </Flex>
+                </Flex>
+
+                <Box p={4} maxH={{ base: 'none', xl: 'calc(100vh - 300px)' }} overflowY={{ base: 'visible', xl: 'auto' }}>
+                  {galleryProducts.length ? (
+                    <SimpleGrid columns={{ base: 2, md: 3, lg: 4, '2xl': 5 }} spacing={3}>
+                      {galleryProducts.map((product) => {
+                        const hasVariants = product.variants.length > 1
+                        const firstItem = product.variants[0]
+                        const outOfStock = Number(product.stock || 0) <= 0
+                        const title = product.name
+                        const priceLabel = product.minPrice === product.maxPrice
+                          ? `S/ ${formatMoney(product.minPrice)}`
+                          : `S/ ${formatMoney(product.minPrice)} - ${formatMoney(product.maxPrice)}`
+                        return (
+                          <Box
+                            key={product.productId}
+                            borderWidth="1px"
+                            borderColor={outOfStock ? 'red.200' : 'gray.200'}
+                            borderRadius="md"
+                            bg={outOfStock ? 'red.50' : 'white'}
+                            overflow="hidden"
+                            cursor="pointer"
+                            opacity={outOfStock ? 0.72 : 1}
+                            _hover={{ borderColor: outOfStock ? 'red.300' : 'teal.400', boxShadow: 'md', transform: 'translateY(-1px)' }}
+                            transition="all 0.15s ease"
+                            onClick={() => selectGalleryProduct(product)}
+                          >
+                            <Box h={{ base: '150px', md: '184px' }} bg="gray.100" display="grid" placeItems="center" position="relative">
+                              {product.imageUrl ? (
+                                <Image src={resolveAssetUrl(product.imageUrl)} alt={title} w="100%" h="100%" objectFit="cover" />
+                              ) : (
+                                <Text fontSize="3xl" fontWeight="bold" color="gray.400">
+                                  {String(title || 'P').slice(0, 1).toUpperCase()}
+                                </Text>
+                              )}
+                              {outOfStock && (
+                                <Badge position="absolute" top={2} right={2} colorScheme="red">Sin stock</Badge>
+                              )}
+                              {hasVariants && (
+                                <Badge position="absolute" bottom={2} left={2} colorScheme="teal">{product.variants.length} opciones</Badge>
+                              )}
+                              <Box position="absolute" left={0} right={0} bottom={0} bg="blackAlpha.700" color="white" px={3} py={2}>
+                                <Flex justify="space-between" align="center" gap={2}>
+                                  <Text fontSize="sm" fontWeight="bold" noOfLines={1}>{title}</Text>
+                                  <Text fontWeight="bold" flexShrink={0}>{priceLabel}</Text>
+                                </Flex>
+                              </Box>
                             </Box>
                           </Box>
-                        </Box>
-                      )
-                    })}
-                  </SimpleGrid>
-                ) : (
-                  <Box borderWidth="1px" borderStyle="dashed" borderColor="gray.300" borderRadius="md" p={8} textAlign="center">
-                    <Text color="gray.500">Sin coincidencias</Text>
-                  </Box>
-                )}
+                        )
+                      })}
+                    </SimpleGrid>
+                  ) : (
+                    <Box borderWidth="1px" borderStyle="dashed" borderColor="gray.300" borderRadius="md" p={8} textAlign="center">
+                      <Text color="gray.500">Sin coincidencias</Text>
+                    </Box>
+                  )}
+                </Box>
               </Box>
             </Box>
 
@@ -893,16 +1042,29 @@ export default function Pos() {
                     <Text color="gray.500">Agrega productos desde la galeria o escanea un codigo.</Text>
                   </Box>
                 )}
+              </Box>
 
-                <SimpleGrid columns={2} spacing={2} mt={4}>
+              <Box borderTopWidth="1px" borderColor="gray.200" p={4} bg="gray.50">
+                <SimpleGrid columns={2} spacing={2} mb={3}>
                   <SummaryBox label="Subtotal" tone="subtotal" value={`S/ ${formatMoney(totals.subtotal)}`} />
                   <SummaryBox label="Descuento" tone="discount" value={`S/ ${formatMoney(totals.discountTotal)}`} />
                   <SummaryBox label="IGV" tone="tax" value={`S/ ${formatMoney(totals.taxTotal)}`} />
                   <SummaryBox label="Total" tone="total" value={`S/ ${formatMoney(totals.total)}`} />
                 </SimpleGrid>
+                <Button colorScheme="green" leftIcon={<CheckIcon />} onClick={() => setActiveModal('payment')} isDisabled={!cart.length} size="lg" w="100%">
+                  Pagar S/ {formatMoney(totals.total)}
+                </Button>
+              </Box>
+            </Box>
+          </Box>
 
-                <Box bg="green.50" borderWidth="1px" borderColor="green.200" borderRadius="md" p={3} mt={4}>
-                  <Heading size="sm" color="green.800" mb={3}>Datos de cobro</Heading>
+          <Modal isOpen={activeModal === 'payment'} onClose={() => setActiveModal(null)} size="xl">
+            <ModalOverlay />
+            <ModalContent>
+              <ModalHeader bg="green.50" color="green.800">Datos de cobro</ModalHeader>
+              <ModalCloseButton />
+              <ModalBody pt={4}>
+                <Box bg="green.50" borderWidth="1px" borderColor="green.200" borderRadius="md" p={3}>
                   <SimpleGrid columns={1} spacing={3}>
                     <FormControl>
                       <FormLabel>Comprobante</FormLabel>
@@ -914,11 +1076,27 @@ export default function Pos() {
                     </FormControl>
                     <FormControl>
                       <FormLabel>Cliente</FormLabel>
-                      <Select bg="white" value={selected.customerId} onChange={(e) => handleCustomerChange(e.target.value)}>
-                        <option value="">Cliente varios</option>
-                        {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
-                      </Select>
+                      <Flex gap={2} align="stretch">
+                        <Select bg="white" value={selected.customerId} onChange={(e) => handleCustomerChange(e.target.value)}>
+                          <option value="">Cliente varios</option>
+                          {activeCustomers.map((customer) => (
+                            <option key={customer.id} value={customer.id}>
+                              {customer.name}{customer.documentNumber ? ` | ${customer.documentNumber}` : ''}
+                            </option>
+                          ))}
+                        </Select>
+                        <Button leftIcon={<AddIcon />} colorScheme="blue" variant="outline" flexShrink={0} onClick={openCustomerModal}>
+                          Nuevo
+                        </Button>
+                      </Flex>
                     </FormControl>
+                    {selected.receiptType === 'factura' && selectedCustomer && (
+                      <Box bg="blue.50" borderWidth="1px" borderColor="blue.200" borderRadius="md" p={3}>
+                        <Text fontWeight="bold">{selectedCustomer.name}</Text>
+                        <Text fontSize="sm">RUC: {selectedCustomer.documentNumber || 'No registrado'}</Text>
+                        <Text fontSize="sm" color="gray.600">{selectedCustomer.address || 'Direccion no registrada'}</Text>
+                      </Box>
+                    )}
                     <FormControl>
                       <FormLabel>WhatsApp</FormLabel>
                       <Input
@@ -931,7 +1109,16 @@ export default function Pos() {
                     <SimpleGrid columns={2} spacing={3}>
                       <FormControl>
                         <FormLabel>Medio de pago</FormLabel>
-                        <Select bg="white" value={selected.paymentMethodId} onChange={(e) => setSelected((prev) => ({ ...prev, paymentMethodId: e.target.value }))}>
+                        <Select
+                          bg="white"
+                          value={selected.paymentMethodId}
+                          onChange={(e) => setSelected((prev) => ({
+                            ...prev,
+                            paymentMethodId: e.target.value,
+                            paymentReferenceNumber: '',
+                            paymentVoucherUrl: '',
+                          }))}
+                        >
                           {paymentMethods.map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}
                         </Select>
                       </FormControl>
@@ -952,57 +1139,113 @@ export default function Pos() {
                       <Input value={`S/ ${formatMoney(changeAmount)}`} isReadOnly bg="green.100" fontWeight="bold" color="green.800" />
                     </FormControl>
                   </SimpleGrid>
-                  {requiresPaymentVoucher && (
+                  {requiresPaymentReference && (
                     <Box mt={3} p={3} bg="white" borderWidth="1px" borderColor="green.300" borderRadius="md">
-                      <Heading size="sm" color="green.800" mb={3}>Voucher del cliente</Heading>
+                      <Heading size="sm" color="green.800" mb={3}>
+                        {cardPayment ? 'Confirmacion del POS de tarjeta' : 'Voucher del cliente'}
+                      </Heading>
                       <SimpleGrid columns={1} spacing={3}>
                         <FormControl>
-                          <FormLabel>Numero de operacion</FormLabel>
+                          <FormLabel>{cardPayment ? 'Codigo de autorizacion / operacion' : 'Numero de operacion'}</FormLabel>
                           <Input
                             bg="gray.50"
                             value={selected.paymentReferenceNumber}
-                            placeholder="Ej: 984512"
+                            placeholder={cardPayment ? 'Ej: 074521' : 'Ej: 984512'}
                             onChange={(e) => setSelected((prev) => ({ ...prev, paymentReferenceNumber: e.target.value }))}
                           />
                         </FormControl>
-                        <FormControl>
-                          <FormLabel>Foto del voucher</FormLabel>
-                          <Input
-                            bg="gray.50"
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            onChange={(e) => uploadVoucher(e.target.files?.[0])}
-                          />
-                        </FormControl>
-                        {selected.paymentVoucherUrl ? (
-                          <Button as="a" href={selected.paymentVoucherUrl} target="_blank" rel="noreferrer" colorScheme="green" variant="outline" w="100%">
-                            Ver voucher
-                          </Button>
-                        ) : (
-                          <Button isLoading={uploadingVoucher} isDisabled w="100%">Voucher pendiente</Button>
+                        {acceptsVoucherImage && (
+                          <>
+                            <FormControl>
+                              <FormLabel>Foto del voucher{requiresVoucherImage ? '' : ' (opcional)'}</FormLabel>
+                              <Input
+                                bg="gray.50"
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                onChange={(e) => uploadVoucher(e.target.files?.[0])}
+                              />
+                            </FormControl>
+                            {selected.paymentVoucherUrl ? (
+                              <Button as="a" href={selected.paymentVoucherUrl} target="_blank" rel="noreferrer" colorScheme="green" variant="outline" w="100%">
+                                Ver voucher
+                              </Button>
+                            ) : (
+                              <Button isLoading={uploadingVoucher} isDisabled w="100%">
+                                {requiresVoucherImage ? 'Voucher pendiente' : 'Sin foto adjunta'}
+                              </Button>
+                            )}
+                          </>
                         )}
                       </SimpleGrid>
                     </Box>
                   )}
+                  <Button colorScheme="green" leftIcon={<CheckIcon />} isLoading={saving} onClick={createSale} isDisabled={!cart.length} size="lg" w="100%" mt={4}>
+                    Cobrar S/ {formatMoney(totals.total)}
+                  </Button>
                 </Box>
-              </Box>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="outline" onClick={() => setActiveModal(null)}>Cancelar</Button>
+              </ModalFooter>
+            </ModalContent>
+          </Modal>
 
-              <Box borderTopWidth="1px" borderColor="gray.200" p={4} bg="gray.50">
-                <Button colorScheme="green" leftIcon={<CheckIcon />} isLoading={saving} onClick={createSale} isDisabled={!cart.length} size="lg" w="100%" mb={3}>
-                  Cobrar S/ {formatMoney(totals.total)}
-                </Button>
-                <SimpleGrid columns={2} spacing={2}>
-                  {canManageTerminals && (
-                    <Button colorScheme="blue" variant="outline" onClick={() => setActiveModal('terminals')}>Cajas</Button>
-                  )}
-                  <Button colorScheme="orange" variant="outline" onClick={() => setActiveModal('cash')}>Movimiento</Button>
-                  <Button colorScheme="red" variant="outline" onClick={() => setActiveModal('close')}>Cierre</Button>
-                  <Button colorScheme="purple" variant="outline" onClick={() => setActiveModal('sales')}>Ventas S/ {formatMoney(recentSalesTotal)}</Button>
+          <Modal isOpen={customerModalOpen} onClose={() => setCustomerModalOpen(false)} size="lg">
+            <ModalOverlay />
+            <ModalContent>
+              <ModalHeader>Registrar cliente</ModalHeader>
+              <ModalCloseButton />
+              <ModalBody>
+                <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                  <FormControl isRequired>
+                    <FormLabel>Tipo de documento</FormLabel>
+                    <Select
+                      value={customerForm.documentType}
+                      isDisabled={selected.receiptType === 'factura'}
+                      onChange={(e) => setCustomerForm((prev) => ({ ...prev, documentType: e.target.value, documentNumber: '' }))}
+                    >
+                      <option value="RUC">RUC</option>
+                      <option value="DNI">DNI</option>
+                      <option value="CE">CE</option>
+                      <option value="OTRO">Otro</option>
+                    </Select>
+                  </FormControl>
+                  <FormControl isRequired>
+                    <FormLabel>Numero de documento</FormLabel>
+                    <Input
+                      value={customerForm.documentNumber}
+                      maxLength={customerForm.documentType === 'RUC' ? 11 : 30}
+                      inputMode={customerForm.documentType === 'RUC' ? 'numeric' : 'text'}
+                      onChange={(e) => setCustomerForm((prev) => ({ ...prev, documentNumber: e.target.value }))}
+                    />
+                  </FormControl>
                 </SimpleGrid>
-              </Box>
-            </Box>
-          </Box>
+                <FormControl isRequired mt={4}>
+                  <FormLabel>Razon social / nombre</FormLabel>
+                  <Input value={customerForm.name} onChange={(e) => setCustomerForm((prev) => ({ ...prev, name: e.target.value }))} />
+                </FormControl>
+                <FormControl mt={4} isRequired={selected.receiptType === 'factura'}>
+                  <FormLabel>Direccion fiscal</FormLabel>
+                  <Input value={customerForm.address} onChange={(e) => setCustomerForm((prev) => ({ ...prev, address: e.target.value }))} />
+                </FormControl>
+                <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} mt={4}>
+                  <FormControl>
+                    <FormLabel>Telefono / WhatsApp</FormLabel>
+                    <Input value={customerForm.phone} onChange={(e) => setCustomerForm((prev) => ({ ...prev, phone: e.target.value }))} />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>Correo</FormLabel>
+                    <Input type="email" value={customerForm.email} onChange={(e) => setCustomerForm((prev) => ({ ...prev, email: e.target.value }))} />
+                  </FormControl>
+                </SimpleGrid>
+              </ModalBody>
+              <ModalFooter gap={3}>
+                <Button variant="outline" onClick={() => setCustomerModalOpen(false)}>Cancelar</Button>
+                <Button colorScheme="blue" leftIcon={<CheckIcon />} isLoading={savingCustomer} onClick={saveQuickCustomer}>Guardar cliente</Button>
+              </ModalFooter>
+            </ModalContent>
+          </Modal>
 
           <Modal isOpen={Boolean(variantProduct)} onClose={() => setVariantProduct(null)} size="2xl">
             <ModalOverlay />
@@ -1032,7 +1275,7 @@ export default function Pos() {
 
                     <Box>
                       <Heading size="sm" mb={3}>Variables</Heading>
-                      <Flex gap={2} wrap="wrap">
+                      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={2}>
                         {variantProduct.variants.map((item) => {
                           const outOfStock = Number(item.stock || 0) <= 0
                           return (
@@ -1046,16 +1289,16 @@ export default function Pos() {
                               colorScheme={outOfStock ? 'red' : 'teal'}
                               cursor={outOfStock ? 'not-allowed' : 'pointer'}
                               opacity={outOfStock ? 0.55 : 1}
-                              textAlign="left"
+                              textAlign="center"
                               whiteSpace="normal"
-                              maxW="220px"
+                              w="100%"
                               onClick={() => !outOfStock && addVariantFromModal(item)}
                             >
                               {variantOptionLabel(item)}
                             </Badge>
                           )
                         })}
-                      </Flex>
+                      </SimpleGrid>
                     </Box>
                   </Box>
                 )}
@@ -1209,8 +1452,8 @@ export default function Pos() {
                         <Th>Comprobante</Th>
                         <Th>Cliente</Th>
                         <Th>Vendedor</Th>
-                        <Th>Operacion</Th>
-                        <Th>Voucher</Th>
+                        <Th>Forma de pago</Th>
+                        <Th>Nro. operacion</Th>
                         <Th>Total</Th>
                         <Th>Estado</Th>
                       </Tr>
@@ -1218,18 +1461,12 @@ export default function Pos() {
                     <Tbody>
                       {sales.slice(0, 20).map((sale) => (
                         <Tr key={sale.id}>
-                          <Td>{String(sale.saleDate || '').replace('T', ' ').slice(0, 16)}</Td>
+                          <Td>{ticketDate(sale.saleDate)}</Td>
                           <Td>{sale.receiptFullNumber}</Td>
                           <Td>{sale.customerName || 'Cliente varios'}</Td>
                           <Td>{sale.sellerName}</Td>
+                          <Td>{sale.paymentMethodName || '-'}</Td>
                           <Td>{sale.paymentReferenceNumber || '-'}</Td>
-                          <Td>
-                            {sale.paymentVoucherImageUrl ? (
-                              <Button as="a" href={sale.paymentVoucherImageUrl} target="_blank" rel="noreferrer" size="xs" variant="outline" colorScheme="purple">
-                                Ver
-                              </Button>
-                            ) : '-'}
-                          </Td>
                           <Td>S/ {formatMoney(sale.total)}</Td>
                           <Td>{sale.status}</Td>
                         </Tr>
@@ -1419,35 +1656,6 @@ export default function Pos() {
         </ModalContent>
       </Modal>
 
-      <Flex
-        justify="space-between"
-        align={{ base: 'stretch', md: 'center' }}
-        direction={{ base: 'column', md: 'row' }}
-        gap={3}
-        mt={5}
-        bg="white"
-        borderWidth="1px"
-        borderColor={openShift ? 'green.300' : 'orange.300'}
-        borderLeftWidth="6px"
-        borderRadius="md"
-        p={4}
-        boxShadow="sm"
-      >
-        <Box>
-          <Heading size="lg">POS</Heading>
-          <Text color={openShift ? 'green.700' : 'orange.700'} fontWeight="semibold">
-            {openShift ? `${openShift.terminalName || 'Terminal'} | ${openShift.locationName || ''}` : 'Caja sin turno abierto'}
-          </Text>
-        </Box>
-        <Flex gap={2} wrap="wrap">
-          {canManageTerminals && (
-            <Button colorScheme="blue" variant="outline" onClick={() => setActiveModal('terminals')}>
-              Cajas
-            </Button>
-          )}
-          <Button leftIcon={<RepeatIcon />} variant="outline" onClick={loadData}>Actualizar</Button>
-        </Flex>
-      </Flex>
     </Box>
   )
 }

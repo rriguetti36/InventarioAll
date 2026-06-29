@@ -229,6 +229,9 @@ class PosModel {
         SELECT s.*, t.name AS terminalName, l.name AS locationName,
                COALESCE(s.customerNameSnapshot, c.name) AS customerName,
                COALESCE(s.customerPhone, c.phone) AS customerPhone,
+               c.documentType AS customerDocumentType,
+               c.documentNumber AS customerDocumentNumber,
+               c.address AS customerAddress,
                u.name AS sellerName,
                pay.methodName AS paymentMethodName,
                pay.referenceNumber AS paymentReferenceNumber,
@@ -332,6 +335,9 @@ class PosModel {
         SELECT s.*, t.name AS terminalName, l.name AS locationName,
                COALESCE(s.customerNameSnapshot, c.name) AS customerName,
                COALESCE(s.customerPhone, c.phone) AS customerPhone,
+               c.documentType AS customerDocumentType,
+               c.documentNumber AS customerDocumentNumber,
+               c.address AS customerAddress,
                u.name AS sellerName
         FROM PosSales s
         INNER JOIN PosTerminals t ON t.id = s.terminalId
@@ -509,7 +515,10 @@ class PosModel {
         .input('fullNumber', sql.NVarChar(30), sale.receiptFullNumber)
         .input('issueDate', sql.Date, peruDate())
         .input('currency', sql.NVarChar(10), sale.currency || 'PEN')
+        .input('customerDocumentType', sql.NVarChar(30), text(data.customerDocumentType))
+        .input('customerDocumentNumber', sql.NVarChar(30), text(data.customerDocumentNumber))
         .input('customerName', sql.NVarChar(180), customerName)
+        .input('customerAddress', sql.NVarChar(250), text(data.customerAddress))
         .input('subtotal', sql.Decimal(18, 2), decimal(sale.subtotal))
         .input('taxTotal', sql.Decimal(18, 2), decimal(sale.taxTotal))
         .input('total', sql.Decimal(18, 2), decimal(sale.total))
@@ -518,10 +527,12 @@ class PosModel {
           BEGIN
             INSERT INTO SaleDocuments
               (saleId, documentType, series, documentNumber, fullNumber, issueDate, currency,
-               customerName, subtotal, taxTotal, total)
+               customerDocumentType, customerDocumentNumber, customerName, customerAddress,
+               subtotal, taxTotal, total)
             VALUES
               (@saleId, @documentType, @series, @documentNumber, @fullNumber, @issueDate, @currency,
-               @customerName, @subtotal, @taxTotal, @total)
+               @customerDocumentType, @customerDocumentNumber, @customerName, @customerAddress,
+               @subtotal, @taxTotal, @total)
           END
         `);
     }

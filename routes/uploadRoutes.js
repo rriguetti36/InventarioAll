@@ -80,8 +80,7 @@ router.post('/product-image', requireRoles('administrativo', 'operativo'), expre
     const filepath = path.join(targetDir, filename);
     fs.writeFileSync(filepath, buffer);
 
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    res.status(201).json({ url: `${baseUrl}/api/uploads/${companyFolder}/products/${filename}` });
+    res.status(201).json({ url: `/api/uploads/${companyFolder}/products/${filename}` });
   } catch (err) {
     next(err);
   }
@@ -106,8 +105,7 @@ router.post('/pos-voucher', requireRoles('admin_tienda', 'administrativo', 'vend
     const filepath = path.join(targetDir, filename);
     fs.writeFileSync(filepath, buffer);
 
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    res.status(201).json({ url: `${baseUrl}/api/uploads/${companyFolder}/pos-vouchers/${filename}` });
+    res.status(201).json({ url: `/api/uploads/${companyFolder}/pos-vouchers/${filename}` });
   } catch (err) {
     next(err);
   }

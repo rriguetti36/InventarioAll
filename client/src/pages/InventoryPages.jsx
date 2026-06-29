@@ -35,7 +35,7 @@ import {
 } from '@chakra-ui/react'
 import { AddIcon, ArrowBackIcon, CheckIcon, DeleteIcon, DownloadIcon, EditIcon, ViewIcon } from '@chakra-ui/icons'
 import { useNavigate, useParams } from 'react-router-dom'
-import api from '../services/api'
+import api, { resolveAssetUrl } from '../services/api'
 import ConfirmDialog from '../components/ConfirmDialog'
 
 const today = new Date().toISOString().slice(0, 10)
@@ -788,7 +788,7 @@ export function ProductList() {
           key: 'imageUrl',
           label: 'Foto',
           render: (row) => row.imageUrl ? (
-            <Image src={row.imageUrl} boxSize="56px" objectFit="cover" borderRadius="md" borderWidth="1px" bg="gray.50" />
+            <Image src={resolveAssetUrl(row.imageUrl)} boxSize="56px" objectFit="cover" borderRadius="md" borderWidth="1px" bg="gray.50" />
           ) : (
             <Flex boxSize="56px" align="center" justify="center" borderWidth="1px" borderRadius="md" bg="gray.50">
               <Text fontSize="xs" color="gray.500">Sin foto</Text>
@@ -801,7 +801,6 @@ export function ProductList() {
         { key: 'type', label: 'Tipo', render: (row) => productTypeLabel(row.type) },
         { key: 'model', label: 'Modelo', render: (row) => row.model || '-' },
         { key: 'characteristics', label: 'Caracteristicas', render: (row) => summarizeAttributes(row.characteristics) },
-        { key: 'supplierName', label: 'Proveedor', render: (row) => row.supplierName || '-' },
         { key: 'salePrice', label: 'Precio venta' },
         { key: 'estado', label: 'Estado', render: (row) => row.estado ? 'activo' : 'inactivo' },
       ]}
@@ -970,7 +969,7 @@ export function ProductForm() {
                   <FormLabel>Foto del producto</FormLabel>
                   <Flex gap={4} align={{ base: 'stretch', md: 'center' }} direction={{ base: 'column', md: 'row' }}>
                     {formData.imageUrl ? (
-                      <Image src={formData.imageUrl} alt="Foto del producto" boxSize="112px" objectFit="cover" borderRadius="md" borderWidth="1px" bg="gray.50" />
+                      <Image src={resolveAssetUrl(formData.imageUrl)} alt="Foto del producto" boxSize="112px" objectFit="cover" borderRadius="md" borderWidth="1px" bg="gray.50" />
                     ) : (
                       <Flex boxSize="112px" align="center" justify="center" borderWidth="1px" borderRadius="md" bg="gray.50">
                         <Text color="gray.500" fontSize="sm">Sin foto</Text>
@@ -1011,16 +1010,17 @@ export function ProductForm() {
                 <ModalHeader>Variables del producto</ModalHeader>
                 <ModalCloseButton />
                 <ModalBody>
-                  <VStack align="stretch" spacing={3}>
-                    {characteristicNames.map((name) => (
-                      <Box key={name} borderWidth="1px" borderRadius="md" p={3}>
+                  <VStack align="stretch" spacing={4}>
+                    <SimpleGrid columns={{ base: 1, md: 3 }} spacing={3}>
+                      {characteristicNames.map((name) => (
+                      <Box key={name} borderWidth="1px" borderRadius="md" p={3} minW={0}>
                         <Flex gap={2} align="center" mb={3}>
                           <Input value={name} isReadOnly />
                           <IconButton type="button" aria-label="Quitar caracteristica" icon={<DeleteIcon />} colorScheme="red" isDisabled={fields.includes(name)} onClick={() => removeCharacteristic(name)} />
                         </Flex>
                         <Flex gap={2} mb={3}>
                           <Input placeholder={`Valor para ${name}`} value={valueDrafts[name] || ''} onChange={(e) => setValueDrafts((prev) => ({ ...prev, [name]: e.target.value }))} />
-                          <Button type="button" leftIcon={<AddIcon />} onClick={() => addValue(name)}>Agregar</Button>
+                          <IconButton type="button" aria-label={`Agregar valor para ${name}`} icon={<AddIcon />} colorScheme="blue" onClick={() => addValue(name)} />
                         </Flex>
                         <Flex gap={2} wrap="wrap">
                           {valuesFor(name).map((value) => (
@@ -1031,10 +1031,11 @@ export function ProductForm() {
                           ))}
                         </Flex>
                       </Box>
-                    ))}
+                      ))}
+                    </SimpleGrid>
                     <Flex gap={2}>
                       <Input placeholder="Nueva caracteristica, por ejemplo Talla" value={newCharacteristic} onChange={(e) => setNewCharacteristic(e.target.value)} />
-                      <Button type="button" leftIcon={<AddIcon />} onClick={addCharacteristic}>Agregar</Button>
+                      <IconButton type="button" aria-label="Agregar caracteristica" icon={<AddIcon />} colorScheme="blue" onClick={addCharacteristic} />
                     </Flex>
                   </VStack>
                 </ModalBody>

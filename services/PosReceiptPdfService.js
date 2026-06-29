@@ -10,7 +10,11 @@ function safe(value, fallback = '-') {
 
 function dateText(value) {
   if (!value) return '-';
-  return new Date(value).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' });
+  return new Date(value).toLocaleString('es-PE', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'America/Lima',
+  });
 }
 
 function receiptTitle(type) {
@@ -92,7 +96,7 @@ class PosReceiptPdfService {
       doc.font('Helvetica-Bold').fontSize(10).fillColor('#1A202C').text('Datos de venta', 40, 146);
       doc.rect(40, 162, 515, 76).strokeColor('#CBD5E0').lineWidth(1).stroke();
       drawLabelValue(doc, 'Cliente', sale.customerName || 'Cliente varios', 52, 178, 270, 72);
-      drawLabelValue(doc, 'Comprobante', safe(sale.receiptFullNumber), 52, 198, 270, 72);
+      drawLabelValue(doc, 'Documento', [sale.customerDocumentType, sale.customerDocumentNumber].filter(Boolean).join(' ') || '-', 52, 198, 270, 72);
       drawLabelValue(doc, 'Tienda', sale.locationName, 52, 218, 270, 72);
       drawLabelValue(doc, 'Vendedor', sale.sellerName, 334, 178, 200, 70);
       drawLabelValue(doc, 'Terminal', sale.terminalName, 334, 198, 200, 70);

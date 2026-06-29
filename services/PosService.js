@@ -45,9 +45,17 @@ function validatePayments(payments) {
       throw error;
     }
     const methodName = String(payment.methodName || '').toLowerCase();
-    const needsVoucher = ['yape', 'plin', 'transferencia', 'deposito', 'depósito'].some((term) => methodName.includes(term));
-    if (needsVoucher && (!payment.referenceNumber || !payment.voucherImageUrl)) {
-      const error = new Error('Yape, Plin y transferencias requieren numero de operacion y foto del voucher');
+    const needsReference = ['yape', 'plin', 'transferencia', 'deposito', 'depósito', 'tarjeta', 'card', 'visa', 'mastercard']
+      .some((term) => methodName.includes(term));
+    const isCard = ['tarjeta', 'card', 'visa', 'mastercard'].some((term) => methodName.includes(term));
+    const needsVoucherImage = ['transferencia', 'deposito', 'depósito'].some((term) => methodName.includes(term));
+    if (needsReference && !payment.referenceNumber) {
+      const error = new Error(isCard ? 'Debes registrar el codigo de autorizacion del POS' : 'Debes registrar el numero de operacion');
+      error.status = 400;
+      throw error;
+    }
+    if (needsVoucherImage && !payment.voucherImageUrl) {
+      const error = new Error('Las transferencias y depositos requieren foto del voucher');
       error.status = 400;
       throw error;
     }
@@ -181,12 +189,48 @@ class PosService {
     return { buffer, filename };
   }
 
-  static createSale(data, user) {
+  static async createSale(data, user) {
     required(data, ['shiftId']);
     const items = data.items || data.details || [];
     validateItems(items);
     validatePayments(data.payments);
-    return PosModel.createSale({ ...data, items }, user.id, scopedLocationId(user));
+    const customer = data.customerId ? await InventoryModel.getCustomer(data.customerId) : null;
+    if (data.customerId && !customer) {
+      const error = new Error('Cliente no encontrado');
+      error.status = 404;
+      throw error;
+    }
+    if (customer && !customer.estado) {
+      const error = new Error('El cliente seleccionado esta deshabilitado');
+      error.status = 400;
+      throw error;
+    }
+    if (data.receiptType === 'factura') {
+      if (!customer) {
+        const error = new Error('Selecciona un cliente para emitir factura');
+        error.status = 400;
+        throw error;
+      }
+      if (String(customer.documentType || '').toUpperCase() !== 'RUC' || !/^\d{11}$/.test(String(customer.documentNumber || ''))) {
+        const error = new Error('Para emitir factura el cliente debe tener un RUC valido de 11 digitos');
+        error.status = 400;
+        throw error;
+      }
+      if (!String(customer.address || '').trim()) {
+        const error = new Error('Para emitir factura el cliente debe tener direccion fiscal');
+        error.status = 400;
+        throw error;
+      }
+    }
+    return PosModel.createSale({
+      ...data,
+      items,
+      customerNameSnapshot: customer?.name || null,
+      customerPhone: data.customerPhone || customer?.phone || null,
+      customerDocumentType: customer?.documentType || null,
+      customerDocumentNumber: customer?.documentNumber || null,
+      customerAddress: customer?.address || null,
+    }, user.id, scopedLocationId(user));
   }
 
   static async createCashMovement(data, user) {
